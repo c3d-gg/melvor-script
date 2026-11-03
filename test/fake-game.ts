@@ -142,6 +142,8 @@ export class Action extends Obj {
     super(id, name);
   }
   abyssalLevel = 0;
+  /** Unlock requirements besides level (real ones: CartographyPOIDiscovery, ShopPurchase, ...). */
+  requirements: { type: string; met?: boolean }[] = [];
 }
 
 /** Mirrors GatheringSkill in skill.js */
@@ -283,8 +285,9 @@ export class ArtisanSkill extends CraftingSkill {
 export class Woodcutting extends GatheringSkill {
   activeTrees = new Set<Action>();
   treeCutLimit = 1;
+  /** Mirrors woodcutting.js: level, requirements (and abyssal level, unused here). */
   isTreeUnlocked(t: Action) {
-    return this.level >= t.level;
+    return this.level >= t.level && this.game.checkRequirements(t.requirements);
   }
   get masteryAction() {
     return [...this.activeTrees][0];
@@ -548,8 +551,8 @@ export class FakeGame {
   clearActiveAction() {
     this.activeAction = undefined;
   }
-  checkRequirements() {
-    return true;
+  checkRequirements(reqs: { met?: boolean }[] = []) {
+    return reqs.every((r) => r.met !== false);
   }
 
   tick() {

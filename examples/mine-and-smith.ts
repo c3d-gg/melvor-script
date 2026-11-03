@@ -15,7 +15,8 @@ run(async (m) => {
 
   try {
     const r = await m.skills.smithing.smith(SmithingRecipes.Bronze_Bar, { count: BARS });
-    m.success(`Smelted ${r.completed} bronze bars`, r.items);
+    // Skill bonuses can double the bars or save the ore, so count what actually arrived.
+    m.success(`${r.completed} smelts made ${r.items[Items.Bronze_Bar] ?? 0} bronze bars`, r.items);
   } catch (e) {
     if (e instanceof MelvorError && e.code === 'MISSING_ITEMS') {
       m.error('Not enough ore after all:', e.missing);

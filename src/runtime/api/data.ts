@@ -2,6 +2,7 @@
 import type { ActionInfo, AreaInfo, ItemInfo, MonsterInfo, QuantityInfo } from '../../shared/protocol.ts';
 import { isInstance, safe, type GameObject, type RuntimeEnv } from '../env.ts';
 import { allObjects, idOf, resolveItem, resolveSkill } from '../lookup.ts';
+import { isActionUnlocked } from '../skills.ts';
 import type { ApiContext } from './context.ts';
 
 export function itemInfo(item: GameObject): ItemInfo {
@@ -47,7 +48,7 @@ function actionInfo(env: RuntimeEnv, skill: GameObject, a: GameObject): ActionIn
     name: safe(() => a.name, a.localID),
     level: safe(() => a.level, 1),
     abyssalLevel: safe(() => a.abyssalLevel, 0),
-    unlocked: safe(() => skill.isMasteryActionUnlocked(a), true),
+    unlocked: isActionUnlocked(skill, a),
     baseExperience: safe(() => a.baseExperience, null as unknown as number),
     baseIntervalMs: safe(() => a.baseInterval ?? a.baseIntervalMs ?? null, null),
     category: safe(() => idOf(a.category), null),

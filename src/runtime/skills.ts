@@ -30,13 +30,56 @@ export interface SkillAdapter {
   waitUntil?(skill: GameObject, r: Resolved): { what: string; ready(): boolean } | undefined;
 }
 
+/** Level (and abyssal level) requirement only: what `isMasteryActionUnlocked` checks. */
+function levelUnlocked(skill: GameObject, action: GameObject): boolean {
+  if (typeof skill.isMasteryActionUnlocked !== 'function') return true;
+  try {
+    return !!skill.isMasteryActionUnlocked(action);
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Requirements besides level that the action's data lists, e.g. a Cartography discovery for
+ * Atlas of Discovery trees (the game's `isTreeUnlocked` checks these; `isMasteryActionUnlocked` doesn't).
+ */
+function unmetRequirements(skill: GameObject, action: GameObject): GameObject[] {
+  const reqs = action.requirements;
+  if (!Array.isArray(reqs) || reqs.length === 0 || typeof skill.game?.checkRequirements !== 'function') return [];
+  return reqs.filter((r) => {
+    try {
+      return !skill.game.checkRequirements([r], false);
+    } catch {
+      return false;
+    }
+  });
+}
+
+/** True when the player can do this action: level, abyssal level and any other requirements. */
+export function isActionUnlocked(skill: GameObject, action: GameObject): boolean {
+  return levelUnlocked(skill, action) && unmetRequirements(skill, action).length === 0;
+}
+
 function assertUnlocked(skill: GameObject, action: GameObject) {
-  if (typeof skill.isMasteryActionUnlocked === 'function' && !skill.isMasteryActionUnlocked(action)) {
+  if (!levelUnlocked(skill, action)) {
     const abyssal = action.abyssalLevel > 0 ? ` and abyssal level ${action.abyssalLevel}` : '';
     throw new RpcError('LOCKED', `${action.name} requires ${skill.name} level ${action.level}${abyssal}`, {
       level: action.level,
       abyssalLevel: action.abyssalLevel,
     });
+  }
+  const unmet = unmetRequirements(skill, action);
+  if (unmet.length > 0) {
+    const what = unmet.map((r) => (typeof r.type === 'string' ? r.type : 'an unlock')).join(', ');
+    throw new RpcError(
+      'LOCKED',
+      `${action.name} is locked: it needs ${what}, not just ${skill.name} level ${action.level}`,
+      {
+        level: action.level,
+        requirements: unmet.map((r) => (typeof r.type === 'string' ? r.type : 'unknown')),
+      },
+    );
   }
 }
 
@@ -61,10 +104,10 @@ const woodcutting: SkillAdapter = {
     if (trees.length > limit) throw new RpcError('LOCKED', `You can only cut ${limit} tree(s) at once`, { limit });
     if (new Set(trees).size !== trees.length) throw new RpcError('BAD_REQUEST', 'Duplicate trees');
     for (const tree of trees) {
-      if (typeof skill.isTreeUnlocked === 'function' ? !skill.isTreeUnlocked(tree) : false) {
-        throw new RpcError('LOCKED', `${tree.name} requires Woodcutting level ${tree.level}`, { level: tree.level });
+      assertUnlocked(skill, tree); // explains why (level, abyssal level, other requirements)
+      if (typeof skill.isTreeUnlocked === 'function' && !skill.isTreeUnlocked(tree)) {
+        throw new RpcError('LOCKED', `${tree.name} is locked`, { level: tree.level });
       }
-      assertUnlocked(skill, tree);
     }
     if (trees.some((t) => t.realm !== trees[0].realm))
       throw new RpcError('BAD_REQUEST', 'All trees must be in the same realm');

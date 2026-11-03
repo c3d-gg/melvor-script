@@ -15,7 +15,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRuntime, type Runtime } from '../src/runtime/index.ts';
 import type { SettingsBridge } from '../src/runtime/env.ts';
 import { connect, ActionStoppedError, MelvorError, type Melvor } from '../src/client/index.ts';
-import { FakeGame, fakeClasses } from './fake-game.ts';
+import { Action, FakeGame, fakeClasses } from './fake-game.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TOKEN = 'y'.repeat(48);
@@ -377,5 +377,24 @@ describe('settings (Mod Settings → Melvor Script)', () => {
     assert.equal(JSON.parse(fs.readFileSync(configPath, 'utf8')).speed, 1000);
     // The rest of the file is kept.
     assert.equal(JSON.parse(fs.readFileSync(configPath, 'utf8')).token, TOKEN);
+  });
+});
+
+describe('unlocks', () => {
+  it('an action locked by more than level (e.g. a Cartography discovery) is listed as locked and refused with the reason', async () => {
+    const tree = new Action('test:Ritual', 'Ritual Tree', 1, 10, item('test:Oak_Logs'));
+    tree.requirements = [{ type: 'CartographyPOIDiscovery', met: false }];
+    game.woodcutting.actions.register(tree);
+    const m = await client();
+    const wc = m.skills.get('test:Woodcutting');
+    assert.equal((await wc.actions(true)).find((a) => a.id === 'test:Ritual')?.unlocked, false);
+    await assert.rejects(
+      wc.act('test:Ritual'),
+      (e: MelvorError) => e.code === 'LOCKED' && /CartographyPOIDiscovery/.test(e.message),
+    );
+    assert.equal(logs(), 0);
+
+    tree.requirements[0]!.met = true;
+    assert.equal((await wc.actions(true)).find((a) => a.id === 'test:Ritual')?.unlocked, true);
   });
 });

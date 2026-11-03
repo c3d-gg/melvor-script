@@ -37,6 +37,6 @@ run(async (m) => {
     stopWatching();
   }
 
-  // 4. Bury the bones for Prayer XP.
+  // 4. Bury the bones for prayer points (Prayer XP comes from using prayers in combat).
   if (m.bank.count(Items.Bones) > 0) await m.bank.bury(Items.Bones, m.bank.count(Items.Bones));
 });
