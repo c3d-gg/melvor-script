@@ -6,11 +6,14 @@ const FOOD_TARGET = 20;
 const KILLS = 25;
 
 run(async (m) => {
-  // 1. Food supply.
-  while (m.bank.count(Items.Shrimp) + m.player.currentFood.quantity < FOOD_TARGET) {
-    await m.skills.fishing.fish(Fish.Raw_Shrimp, { count: 5 });
-    const raw = m.bank.count(Items.Raw_Shrimp);
-    if (raw > 0) await m.skills.cooking.cook(CookingRecipes.Shrimp, { count: raw, allowStop: true });
+  // 1. Food supply: cook just enough shrimp, fishing first if the bank is short of raw ones.
+  //    (Some burn, so it can take a few rounds.)
+  const food = () => m.bank.count(Items.Shrimp) + m.player.currentFood.quantity;
+  while (food() < FOOD_TARGET) {
+    const need = FOOD_TARGET - food();
+    if (m.bank.count(Items.Raw_Shrimp) < need) await m.skills.fishing.fish(Fish.Raw_Shrimp, { count: 5 });
+    const cook = Math.min(need, m.bank.count(Items.Raw_Shrimp));
+    if (cook > 0) await m.skills.cooking.cook(CookingRecipes.Shrimp, { count: cook, allowStop: true });
   }
   if (m.bank.count(Items.Shrimp) > 0) await m.player.equipFood(Items.Shrimp, m.bank.count(Items.Shrimp));
 
