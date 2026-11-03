@@ -1,0 +1,20 @@
+{
+  // bun fmt has no language server, so VS Code runs it through the Custom Local Formatters
+  // extension, which pipes the buffer through the command below (stdin -> stdout).
+  "customLocalFormatters.formatters": [
+    {
+      "command": "bun fmt --no-script --stdin-filepath \"${file}\"",
+      "languages": ["typescript", "javascript", "json", "jsonc", "markdown", "css", "html"]
+    }
+  ],
+  "[typescript]": { "editor.defaultFormatter": "jkillian.custom-local-formatters" },
+  "[javascript]": { "editor.defaultFormatter": "jkillian.custom-local-formatters" },
+  "[json]": { "editor.defaultFormatter": "jkillian.custom-local-formatters" },
+  "[jsonc]": { "editor.defaultFormatter": "jkillian.custom-local-formatters" },
+  "[markdown]": { "editor.defaultFormatter": "jkillian.custom-local-formatters" },
+  "[css]": { "editor.defaultFormatter": "jkillian.custom-local-formatters" },
+  "[html]": { "editor.defaultFormatter": "jkillian.custom-local-formatters" },
+  "editor.formatOnSave": true,
+  // The NPM Scripts panel (and "type": "npm" tasks) run scripts with Bun.
+  "npm.packageManager": "bun"
+}

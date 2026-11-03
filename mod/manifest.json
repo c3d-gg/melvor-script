@@ -1,0 +1,6 @@
+{
+  "namespace": "scriptable",
+  "icon": "assets/icon.svg",
+  "setup": "setup.mjs",
+  "load": ["data/gamemodes.json"]
+}

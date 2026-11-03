@@ -1,0 +1,38 @@
+{
+  "name": "melvor-script",
+  "version": "0.2.0",
+  "description": "Play Melvor Idle by writing TypeScript. The game runs a local WebSocket server; your scripts (run from VS Code) drive every action.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/c3d-gg/melvor-script.git"
+  },
+  "homepage": "https://github.com/c3d-gg/melvor-script#readme",
+  "bugs": "https://github.com/c3d-gg/melvor-script/issues",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/client/index.ts"
+  },
+  "scripts": {
+    "build": "bun tools/build.ts",
+    "dev": "bun tools/build.ts --watch",
+    "pack": "bun tools/build.ts --pack",
+    "gen:ids": "bun tools/gen-ids.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.runtime.json",
+    "format": "bun fmt",
+    "format:check": "bun fmt --check",
+    "test": "bun test",
+    "melvor": "bun src/cli/main.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.4",
+    "@types/node": "^22.10.0",
+    "@types/ws": "^8.5.13",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.7.2"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

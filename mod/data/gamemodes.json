@@ -1,0 +1,37 @@
+{
+  "$schema": "https://melvoridle.com/assets/schema/gameData.json",
+  "data": {
+    "gamemodes": [
+      {
+        "id": "Scripted",
+        "name": "Scripted Mode",
+        "media": "assets/icon.svg",
+        "description": "Nothing in this world happens on its own. Every action is a click, issued by your code: write TypeScript in VS Code and play at click speed.",
+        "rules": [
+          "Every action happens instantly when clicked, by a script or by you. Nothing idles.",
+          "After each action, the next one waits its normal time divided by your Speed setting (Mod Settings, default 10). Speed bonuses shorten it.",
+          "Combat is turn-based: each Attack click, you act and then the enemy acts.",
+          "Uses the Standard Mode ruleset, without the tutorial."
+        ],
+        "enableInstantActions": true,
+        "textClass": "text-info",
+        "btnClass": "btn-gamemode-standard",
+        "isPermaDeath": false,
+        "isEvent": false,
+        "endDate": 0,
+        "combatTriangle": "Standard",
+        "hitpointMultiplier": 10,
+        "hasRegen": true,
+        "capNonCombatSkillLevels": false,
+        "startingPage": "melvorD:Woodcutting",
+        "startingItems": [],
+        "allowSkillUnlock": false,
+        "skillUnlockCost": [],
+        "playerModifiers": {},
+        "enemyModifiers": {},
+        "hasTutorial": false,
+        "useDefaultSkillUnlockRequirements": true
+      }
+    ]
+  }
+}

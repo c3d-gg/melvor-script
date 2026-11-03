@@ -1,0 +1,9 @@
+{
+  // src/runtime runs inside the game (NW.js), not Bun, so it is checked without Bun's types:
+  // using a Bun API there fails here instead of at runtime in the game.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["src/runtime/**/*.ts", "src/shared/**/*.ts"]
+}

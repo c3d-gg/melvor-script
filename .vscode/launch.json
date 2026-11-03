@@ -1,0 +1,20 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run script (current file)",
+      "type": "bun",
+      "request": "launch",
+      "program": "${file}",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Melvor REPL",
+      "type": "bun",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/cli/main.ts",
+      "args": ["repl"],
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}

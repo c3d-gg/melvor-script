@@ -1,0 +1,4 @@
+# LF everywhere (bun fmt writes LF; keeps Windows checkouts from flipping line endings)
+* text=auto eol=lf
+*.svg text eol=lf
+*.zip binary

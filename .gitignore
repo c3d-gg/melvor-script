@@ -1,0 +1,11 @@
+node_modules/
+.cache/
+dist/
+mod/runtime.mjs
+
+# Your own scripts: write them here (or anywhere); they never get committed.
+# The demos that ship with the repo live in examples/.
+scripts/
+
+# The old v1 mod, kept locally for reference.
+legacy/
