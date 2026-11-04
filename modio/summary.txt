@@ -1,0 +1,1 @@
+Turn Melvor Idle into a programming game: write TypeScript in VS Code that plays your character, with typed ids, live game state and a fast Scripted Mode. Desktop only; needs Bun.

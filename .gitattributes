@@ -2,3 +2,6 @@
 * text=auto eol=lf
 *.svg text eol=lf
 *.zip binary
+
+# Not needed by projects that install the package from GitHub (Bun installs from the archive).
+/modio export-ignore

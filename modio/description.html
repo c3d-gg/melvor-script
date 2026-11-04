@@ -1,0 +1,80 @@
+<!doctype html>
+<!--
+  The mod.io page description. To use it: open this file in a browser, select everything
+  (Ctrl+A), copy, and paste into the Description box on mod.io. The formatting carries over.
+-->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Melvor Script: mod.io description</title>
+    <style>
+      body {
+        max-width: 680px;
+        margin: 32px auto;
+        padding: 0 16px;
+        font:
+          16px/1.55 'Segoe UI',
+          sans-serif;
+      }
+      pre {
+        background: #f2f4f7;
+        padding: 12px 16px;
+        border-radius: 8px;
+        overflow-x: auto;
+      }
+      code {
+        font-family: 'Cascadia Code', Consolas, monospace;
+        font-size: 14px;
+        font-variant-ligatures: none;
+      }
+    </style>
+  </head>
+  <body>
+    <p>
+      Play Melvor Idle by writing TypeScript. Your scripts run in VS Code and control your character through a typed
+      API: skills, combat, bank and shop.
+    </p>
+
+    <pre><code>import { run, Items, Trees } from 'melvor-script';
+
+run(async (m) =&gt; {
+  while (m.bank.count(Items.Oak_Logs) &lt; 100) {
+    await m.skills.woodcutting.cut(Trees.Oak);
+  }
+});</code></pre>
+
+    <h3>What you need</h3>
+    <ul>
+      <li>The desktop game (Steam). Not the browser or mobile versions.</li>
+      <li><a href="https://bun.com">Bun</a></li>
+      <li>VS Code (recommended)</li>
+    </ul>
+
+    <h3>Setup</h3>
+    <ol>
+      <li>Subscribe to this mod and restart the game.</li>
+      <li>
+        In a new folder, run:<br />
+        <code>bun init -y</code><br />
+        <code>bun add github:c3d-gg/melvor-script#v0.4.0</code><br />
+        <code>bunx melvor init</code>
+      </li>
+      <li>Load a character, then run <code>bun scripts/hello.ts</code> (or press F5 in VS Code).</li>
+    </ol>
+
+    <h3>Good to know</h3>
+    <ul>
+      <li>
+        Adds <strong>Scripted Mode</strong>, a gamemode where every action is instant, followed by a short cooldown.
+        Normal characters work too, in real time.
+      </li>
+      <li>Settings are in <strong>Mod Settings → Melvor Script</strong>.</li>
+      <li>Scripted Mode characters need this mod to load.</li>
+    </ul>
+
+    <p>
+      <a href="https://github.com/c3d-gg/melvor-script/blob/main/docs/API.md">API reference</a> · Examples and source:
+      <a href="https://github.com/c3d-gg/melvor-script">github.com/c3d-gg/melvor-script</a>
+    </p>
+  </body>
+</html>
