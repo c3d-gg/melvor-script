@@ -19,6 +19,12 @@ export interface ConnectOptions extends Partial<ConnectionConfig> {
 
 type Pending = { resolve(v: unknown): void; reject(e: unknown): void; method: string; callSite: Error };
 
+/** Why the game hung up, in words. 1006 = the socket dropped with no goodbye: the game closed, crashed or froze. */
+export function closeMessage(code: number, reason: string): string {
+  if (code === 1006 && !reason) return 'the game closed, crashed or stopped responding (1006)';
+  return `connection closed (${code}${reason ? `: ${reason}` : ''})`;
+}
+
 /** JSON-RPC over WebSocket to the game. Low level: most scripts use `Melvor` instead. */
 export class Connection {
   private nextId = 1;
@@ -31,7 +37,7 @@ export class Connection {
 
   private constructor(private ws: WebSocket) {
     ws.on('message', (data) => this.onMessage(data.toString()));
-    ws.on('close', (code, reason) => this.onClose(`connection closed (${code}${reason.length ? `: ${reason}` : ''})`));
+    ws.on('close', (code, reason) => this.onClose(closeMessage(code, reason.toString())));
     ws.on('error', (err) => this.onClose(`connection error: ${err.message}`));
   }
 

@@ -62,7 +62,7 @@ export function run(main: (m: Melvor) => unknown | Promise<unknown>, opts: Conne
     });
     m.connection.onClose((reason) => {
       if (quitting) return;
-      console.error(`■ lost connection to the game: ${reason}`);
+      console.error(`■ lost connection: ${reason}`);
       process.exit(3);
     });
     const strays = new StrayWarnings();
