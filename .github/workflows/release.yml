@@ -1,0 +1,41 @@
+# Cut a release from GitHub: Actions → Release → Run workflow (or `gh workflow run release.yml`).
+# Runs `bun run release`, which picks the version from the commit messages since the last tag,
+# writes CHANGELOG.md, runs the checks, packs the mod, commits + tags + pushes, and publishes a
+# GitHub release with the mod zip attached.
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'auto (from commit messages), patch, minor, major, or an exact version like 1.2.3'
+        required: true
+        default: auto
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0 # the whole history and tags: the version comes from commits since the last tag
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUMP: ${{ inputs.bump }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ "$BUMP" = "auto" ]; then bun run release --yes; else bun run release "$BUMP" --yes; fi
