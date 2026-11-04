@@ -7,5 +7,3 @@ mod/runtime.mjs
 # The demos that ship with the repo live in examples/.
 scripts/
 
-# The old v1 mod, kept locally for reference.
-legacy/

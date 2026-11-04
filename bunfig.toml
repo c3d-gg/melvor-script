@@ -3,6 +3,5 @@
 printWidth = 120
 singleQuote = true
 ignorePatterns = [
-  "legacy/", # old v1 mod, kept for reference only
   "src/shared/ids.generated.ts", # written by `bun run gen:ids`
 ]
