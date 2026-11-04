@@ -93,7 +93,7 @@ export const CATEGORIES: Category[] = [
 const RESERVED = new Set(['constructor', 'prototype', '__proto__', 'toString', 'valueOf', 'hasOwnProperty']);
 
 function keyFor(id: string, taken: Set<string>): string {
-  const [ns, local = id] = id.includes(':') ? id.split(/:(.*)/s) : ['', id];
+  const [ns = '', local = id] = id.includes(':') ? id.split(/:(.*)/s) : ['', id];
   let base = local.replace(/[^A-Za-z0-9_$]/g, '_');
   if (/^[0-9]/.test(base)) base = `_${base}`;
   if (RESERVED.has(base)) base = `${base}_`;
