@@ -66,19 +66,26 @@ On a normal character, each scripted action takes the skill's normal interval. A
 - **Scripted Mode characters need this mod.** The gamemode comes from it, and the game refuses to load a save whose gamemode isn't registered. Other characters load fine without it.
 - The runtime works with the game's internals, so a big game update can break it until the mod is updated.
 
-## Setup (once)
+## Setup
 
-1. Install [Bun](https://bun.com), then `git clone https://github.com/c3d-gg/melvor-script && cd melvor-script && bun install && bun run build` → builds `mod/runtime.mjs`. Scripts, the CLI, the build and the tests all run on Bun, so scripts can use Bun APIs (`Bun.file`, `Bun.$`, `bun:sqlite`, ...). The runtime inside the game does not: it runs in the game's own NW.js.
-2. **Get Creator Toolkit** (the official mod for loading local mods). In Melvor, open the **Mod Manager** (button on the character-select screen, or sidebar _Modding → Mod Manager_) → **Browse** → search `Creator Toolkit` → **Subscribe**, then restart the game.
-3. **Add this mod.** Open Creator Toolkit (sidebar _Modding → Creator Toolkit_, or the orange ✱ button next to the Mod Manager button) → **Local Mods** → **Add Mod**:
-   - Name: `Melvor Script`
-   - Choose **Directory Link** and pick this repo's `mod` folder (e.g. `C:\Users\you\Documents\dev\melvor-script\mod`)
-   - **Save**, then restart the game (or press **Reload** in the toolkit header).
+1. Install [Bun](https://bun.com). Scripts run on Bun, so they can use Bun APIs too (`Bun.file`, `Bun.$`, `bun:sqlite`, ...).
+2. **Get Creator Toolkit**, the official mod for loading mods from a file. In Melvor, open the **Mod Manager** (button on the character-select screen, or sidebar _Modding → Mod Manager_) → **Browse** → search `Creator Toolkit` → **Subscribe**, then restart the game.
+3. **Install this mod.** Download [melvor-script-v0.3.0.zip](https://github.com/c3d-gg/melvor-script/releases/download/v0.3.0/melvor-script-v0.3.0.zip) from the [latest release](https://github.com/c3d-gg/melvor-script/releases/latest). In the game, open Creator Toolkit (sidebar _Modding → Creator Toolkit_, or the orange ✱ button next to the Mod Manager button) → **Local Mods** → **Add Mod**: name it `Melvor Script`, choose **Modfile**, pick the zip, **Save**, and restart the game.
+4. **Make a folder for your scripts:**
 
-   Creator Toolkit re-packs a linked folder every time the game starts, so after `bun run build` you just restart. (Or pick **Modfile** with `dist/melvor-script.zip` from `bun run pack`, but then you have to re-upload it after every change.)
+   ```sh
+   mkdir my-melvor-scripts && cd my-melvor-scripts
+   bun init -y
+   bun add github:c3d-gg/melvor-script#v0.3.0
+   bunx melvor init
+   ```
 
-4. Load a character, or create one in **Scripted Mode**. A **Melvor Script** panel appears (bottom right; the _Modding → Melvor Script_ sidebar entry toggles it). On first load the game writes `~/.melvor-scripting/config.json` with a random token. The client reads it from there.
-5. `bun examples/hello.ts`, or open the file in VS Code and press **F5** (uses the Bun VS Code extension, `oven.bun-vscode`).
+   `melvor init` adds `scripts/hello.ts`, a `tsconfig.json` if you don't have one, and VS Code's F5 setup. It never overwrites a file.
+
+5. Load a character, or create one in **Scripted Mode**. A **Melvor Script** panel appears (bottom right; the _Modding → Melvor Script_ sidebar entry toggles it). On first load the game writes `~/.melvor-scripting/config.json` with a random token, which your scripts read to connect.
+6. `bun scripts/hello.ts`, or open it in VS Code and press **F5** (with the Bun extension, `oven.bun-vscode`).
+
+**Updating:** download the new zip and replace the mod in Creator Toolkit, then `bun add github:c3d-gg/melvor-script#vX.Y.Z` with the same version. If the two ever disagree on the protocol, the connection says which side to update.
 
 ## Settings
 
@@ -91,13 +98,13 @@ In the game: sidebar **Mod Settings → Melvor Script**. The values are kept in 
 
 ## Writing scripts
 
-Put your files in `scripts/`. It's gitignored, so `git pull` never touches them. The demos live in `examples/`. Each script calls `run((m) => { ... })`, which connects and reports errors at your script's line.
+Put your files in `scripts/` (`melvor init` starts you off with `hello.ts`). Each script calls `run((m) => { ... })`, which connects and reports errors at your script's line.
 
 - **The script ends when `main` has returned and nothing is left scheduled** (no intervals or timers, no pending calls, no `m.on` / `m.onState` listeners). A `setInterval` loop runs until you stop it; an `async` script exits when it's done.
 - **Ctrl+C** or the in-game **stop** button ends it and cancels its actions.
 - **A fire-and-forget action that fails prints a warning instead of killing the loop.** Repeats are summarised, and calls made while not ready are ignored silently after the first notice. Errors thrown by your own code still stop the script.
 
-Examples (in `examples/`): `hello.ts` (read state) · `loop.ts` (setInterval woodcut/burn) · `fight-loop.ts` (turn-based combat loop) · `woodcut-and-burn.ts` · `best-tree.ts` · `mine-and-smith.ts` · `food-and-fight.ts`.
+Examples (in [`examples/`](examples)): `hello.ts` (read state) · `loop.ts` (setInterval woodcut/burn) · `fight-loop.ts` (turn-based combat loop) · `woodcut-and-burn.ts` · `best-tree.ts` · `mine-and-smith.ts` · `food-and-fight.ts`.
 
 |                    |                                                                                                                                                                                                      |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -120,11 +127,13 @@ Actions return an `ActionResult` (`completed`, `actions`, `xp`, `items` deltas, 
 
 ## CLI
 
-`bun run melvor <cmd>`: `status` · `eval "<js>"` · `repl` (`m` is the API; `.game <js>` evaluates in the game) · `watch` (live events) · `stop` · `script-mode on|off` · `gen-types` · `reload` · `use-bundled`.
+`bunx melvor <cmd>` (`bun run melvor <cmd>` in a clone of this repo): `init` · `status` · `eval "<js>"` · `repl` (`m` is the API; `.game <js>` evaluates in the game) · `watch` (live events) · `stop` · `script-mode on|off` · `gen-types` · `reload` · `use-bundled`.
 
 The Steam build ships with devtools disabled, so `eval` and `repl` are your console into the game. Both need **Allow eval** turned on (see [Settings](#settings)).
 
 ## Working on the mod itself
+
+Clone the repo and run `bun install && bun run build` (builds `mod/runtime.mjs`). In Creator Toolkit, add the mod with **Directory Link** pointed at the repo's `mod` folder instead of the zip: it re-packs that folder every time the game starts, so after `bun run build` you just restart. In the clone, `scripts/` is gitignored for your own scripts and the demos run straight away (`bun examples/hello.ts`).
 
 - `bun run dev` points the game at `mod/runtime.mjs` on disk and rebuilds on change. Each rebuild hot-reloads the runtime inside the running game. `bun run melvor use-bundled` undoes this.
 - `bun test` runs the end-to-end tests: the real server, RPC, click and job engines and client, against a fake game that mirrors Melvor's skill, combat and timer code (real-time and instant).
