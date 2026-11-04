@@ -205,6 +205,27 @@ describe('instant skills', () => {
     );
   });
 
+  it('scripted clicks skip the "Out of Actions!" joke popup; the player\'s own clicks keep it', async () => {
+    const g = globalThis as { showActionsRunOutSwal?: () => void };
+    let rolls = 0;
+    const joke = () => void rolls++;
+    g.showActionsRunOutSwal = joke;
+    try {
+      const m = await client();
+      await m.skills.get('test:Woodcutting').act('test:Oak');
+      await m.skills.get('test:Woodcutting').act('test:Oak', { count: 3 });
+      assert.equal(rolls, 0, 'no rolls for scripted clicks');
+      assert.equal(g.showActionsRunOutSwal, joke, 'the game function is put back after each click');
+
+      await m.whenReady({ timeoutMs: 1000 });
+      game.woodcutting.activeTrees.add(game.woodcutting.actions.getObjectByID('test:Oak')!);
+      assert.equal(game.woodcutting.start(), true); // a click in the game UI
+      assert.equal(rolls, 1, 'the player still gets the roll');
+    } finally {
+      delete g.showActionsRunOutSwal;
+    }
+  });
+
   it("the player's own clicks share the cooldown", async () => {
     const m = await client();
     const oak = game.woodcutting.actions.getObjectByID('test:Oak')!;

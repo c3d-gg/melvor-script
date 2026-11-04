@@ -28,6 +28,25 @@ export const DEFAULT_SPEED = 10;
 /** A request arriving this close to the end of the cooldown waits instead of failing (timer jitter). */
 const COOLDOWN_TOLERANCE_MS = 30;
 const MIN_COOLDOWN_MS = 50;
+
+/**
+ * Run a scripted click without the game's April Fools 2024 joke: with instant actions, every
+ * skill start() rolls a 0.1% chance of an "Out of Actions!" popup (main.js
+ * showActionsRunOutSwal). Fine for a person clicking; a script clicking several times a second
+ * hits it every minute or two. Only scripted clicks skip the roll; the player's own clicks keep it.
+ * (It's a global function declaration, so it lives on window and can be swapped for the call.)
+ */
+function withoutJokePopup<T>(fn: () => T): T {
+  const g = globalThis as { showActionsRunOutSwal?: unknown };
+  const original = g.showActionsRunOutSwal;
+  if (typeof original !== 'function') return fn();
+  g.showActionsRunOutSwal = () => {};
+  try {
+    return fn();
+  } finally {
+    g.showActionsRunOutSwal = original;
+  }
+}
 /** Longest a click waits for a rock to respawn or an enemy to spawn. */
 const MAX_WAIT_MS = 10_000;
 const POLL_MS = 20;
@@ -621,7 +640,7 @@ export class ClickController {
     adapter.apply(skill, resolved);
     const interval = this.intervalOf(skill);
     const stun = this.stunOf(skill);
-    const out = this.runClick(skill, () => skill.start() !== false);
+    const out = this.runClick(skill, () => withoutJokePopup(() => skill.start() !== false));
     if (!out.started)
       throw new RpcError('BUSY', `${skill.name} couldn't start (the current action couldn't be stopped)`);
     if (out.actions > 0) this.startCooldown(this.cooldownFor(interval + (out.failed ? stun : 0)));

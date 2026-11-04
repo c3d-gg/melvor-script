@@ -202,6 +202,8 @@ export class GatheringSkill extends Emitter {
         this.game.activeAction = this;
         const n = this.game.modifiers.getInstantActionsToPerform();
         for (let i = 0; i < n; i++) this.action();
+        // skill.js rolls the April Fools "Out of Actions!" popup here (a global in main.js).
+        (globalThis as { showActionsRunOutSwal?: () => void }).showActionsRunOutSwal?.();
         this.stop();
       }
     }
