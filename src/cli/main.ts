@@ -1,6 +1,8 @@
+#!/usr/bin/env bun
 /**
- * melvor CLI:  bun run melvor <command>
+ * melvor CLI:  `bun run melvor <command>` in this repo, `bunx melvor <command>` where it is installed
  *
+ *   init                   set up this folder for writing scripts (after bun add github:c3d-gg/melvor-script)
  *   status                 connection + character summary
  *   eval <js>              run JavaScript inside the game, print the result
  *   repl                   interactive shell with `m` (the API) and `.game <js>`
@@ -19,12 +21,14 @@ import { inspect } from 'node:util';
 import { connect, MelvorError, type Melvor } from '../client/index.ts';
 import { configPath, setDevRuntime } from '../client/config.ts';
 import { generateIdsModule } from '../shared/gen-ids.ts';
+import { init } from './init.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const [cmd = 'help', ...rest] = process.argv.slice(2);
 
-const HELP = `usage: bun run melvor <command>
+const HELP = `usage: melvor <command>   (bun run melvor … in this repo, bunx melvor … where it is installed)
 
+  init                   set up this folder for writing scripts (scripts/hello.ts, tsconfig, VS Code F5)
   status                 connection + character summary
   eval <js>              run JavaScript inside the game, print the result
   repl                   interactive shell: \`m\` is the API, \`.game <js>\` evaluates in the game
@@ -78,7 +82,7 @@ async function main() {
 
     case 'eval': {
       const code = rest.join(' ');
-      if (!code) throw new Error('usage: bun run melvor eval "<javascript>"');
+      if (!code) throw new Error('usage: melvor eval "<javascript>"');
       return withGame(async (m) => show(await m.eval(code, 3)));
     }
 
@@ -144,6 +148,10 @@ async function main() {
           `wrote ${out}: ${reg.items?.length ?? 0} items, ${reg.monsters?.length ?? 0} monsters, ${Object.keys(reg).length} registries`,
         );
       });
+
+    case 'init':
+      console.log(`setting up ${process.cwd()} for melvor-script:`);
+      return init(process.cwd(), ROOT);
 
     case 'stop':
       return withGame(async (m) => show(await m.stopAll('stopped from the CLI')));

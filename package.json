@@ -11,6 +11,16 @@
   "bugs": "https://github.com/c3d-gg/melvor-script/issues",
   "private": true,
   "type": "module",
+  "bin": {
+    "melvor": "src/cli/main.ts"
+  },
+  "files": [
+    "src",
+    "examples",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
   "exports": {
     ".": "./src/client/index.ts"
   },
