@@ -12,7 +12,11 @@ import type {
   GameState,
   ItemInfo,
   LogLevel,
+  MasteryInfo,
+  MasteryPoolState,
   MonsterInfo,
+  PlayerState,
+  FoodSlotState,
   RuntimeInfo,
   ShopPurchaseInfo,
   SkillState,
@@ -72,18 +76,22 @@ export type GameEvent<T extends GameEventType = GameEventType> = Extract<GameEve
 export class Skill {
   constructor(
     protected readonly m: Melvor,
+    /** The skill's id, e.g. 'melvorD:Woodcutting'. */
     readonly id: SkillId,
   ) {}
 
   protected get s(): SkillState | undefined {
     return this.m.state.skills[this.id];
   }
+  /** Display name. */
   get name(): string {
     return this.s?.name ?? this.id;
   }
+  /** Current level. */
   get level(): number {
     return this.s?.level ?? 1;
   }
+  /** Total XP. */
   get xp(): number {
     return this.s?.xp ?? 0;
   }
@@ -91,14 +99,25 @@ export class Skill {
   get xpToNext(): number {
     return this.s?.xpToNext ?? 0;
   }
+  /** The highest level you can reach right now. */
   get levelCap(): number {
     return this.s?.levelCap ?? 99;
   }
+  /** False for a skill you haven't unlocked yet (Adventure mode). */
   get unlocked(): boolean {
     return this.s?.unlocked ?? false;
   }
+  /** Into the Abyss: abyssal level (0 if the skill has none). */
   get abyssalLevel(): number {
     return this.s?.abyssalLevel ?? 0;
+  }
+  /** The mastery pool (normal realm), live. Undefined for skills without mastery. */
+  get masteryPool(): MasteryPoolState | undefined {
+    return this.s?.masteryPools?.['melvorD:Melvor'];
+  }
+  /** Into the Abyss: the abyssal realm's mastery pool, live. */
+  get abyssalMasteryPool(): MasteryPoolState | undefined {
+    return this.s?.masteryPools?.['melvorItA:Abyssal'];
   }
 
   /** This skill's actions/recipes with level, costs, products and whether they're unlocked. Cached; pass `true` to refresh. */
@@ -139,6 +158,30 @@ export class ActionSkill<T extends string = string> extends Skill {
   get busy(): boolean {
     return this.m.state.action.jobs.some((j) => j.skill === this.id);
   }
+
+  /** One action's mastery: level (1 to 99), XP, and XP to the next level. */
+  async mastery(action: T): Promise<MasteryInfo> {
+    const all = await this.m.connection.call('mastery.get', { skill: this.id, actions: [action] });
+    return Object.values(all)[0]!;
+  }
+
+  /** Mastery of every action in this skill, keyed by action id. */
+  masteries(): Promise<Record<T, MasteryInfo>> {
+    return this.m.connection.call('mastery.get', { skill: this.id }) as Promise<Record<T, MasteryInfo>>;
+  }
+
+  /**
+   * Spend mastery pool XP to raise an action's mastery by `levels` (default 1), like the game's
+   * "Spend Mastery XP" menu. Free: no cooldown. Refuses if it would drop the pool below a
+   * checkpoint (10/25/50/95%) and lose that bonus, unless `allowCheckpointLoss` is set.
+   */
+  spendMasteryPool(
+    action: T,
+    levels = 1,
+    opts: { allowCheckpointLoss?: boolean } = {},
+  ): Promise<MasteryInfo & { spent: number }> {
+    return this.m.connection.call('mastery.spendPool', { skill: this.id, action, levels, ...opts });
+  }
 }
 
 export class Woodcutting extends ActionSkill<TreeId> {
@@ -148,6 +191,7 @@ export class Woodcutting extends ActionSkill<TreeId> {
   }
 }
 export class Fishing extends ActionSkill<FishId> {
+  /** Catch a fish. */
   fish(fish: FishId, opts?: ActOptions) {
     return this.act(fish, opts);
   }
@@ -165,41 +209,49 @@ export class Thieving extends ActionSkill<NpcId> {
   }
 }
 export class Firemaking extends ActionSkill<LogId> {
+  /** Burn logs. */
   burn(log: LogId, opts?: ActOptions) {
     return this.act(log, opts);
   }
 }
 export class Cooking extends ActionSkill<CookingRecipeId> {
+  /** Cook a recipe. */
   cook(recipe: CookingRecipeId, opts?: ActOptions) {
     return this.act(recipe, opts);
   }
 }
 export class Smithing extends ActionSkill<SmithingRecipeId> {
+  /** Smelt a bar or smith an item. */
   smith(recipe: SmithingRecipeId, opts?: ActOptions) {
     return this.act(recipe, opts);
   }
 }
 export class Fletching extends ActionSkill<FletchingRecipeId> {
+  /** Fletch a recipe. */
   fletch(recipe: FletchingRecipeId, opts?: ActOptions) {
     return this.act(recipe, opts);
   }
 }
 export class Crafting extends ActionSkill<CraftingRecipeId> {
+  /** Craft a recipe. */
   craft(recipe: CraftingRecipeId, opts?: ActOptions) {
     return this.act(recipe, opts);
   }
 }
 export class Runecrafting extends ActionSkill<RunecraftingRecipeId> {
+  /** Craft runes, staves or another Runecrafting recipe. */
   craft(recipe: RunecraftingRecipeId, opts?: ActOptions) {
     return this.act(recipe, opts);
   }
 }
 export class Herblore extends ActionSkill<HerbloreRecipeId> {
+  /** Brew a potion. */
   brew(recipe: HerbloreRecipeId, opts?: ActOptions) {
     return this.act(recipe, opts);
   }
 }
 export class Summoning extends ActionSkill<SummoningRecipeId> {
+  /** Create summoning tablets. */
   create(recipe: SummoningRecipeId, opts?: ActOptions) {
     return this.act(recipe, opts);
   }
@@ -211,6 +263,7 @@ export class Agility extends ActionSkill<never> {
   }
 }
 export class Astrology extends ActionSkill<ConstellationId> {
+  /** Study a constellation. */
   study(constellation: ConstellationId, opts?: ActOptions) {
     return this.act(constellation, opts);
   }
@@ -232,6 +285,7 @@ export class Archaeology extends ActionSkill<DigSiteId> {
   }
 }
 export class Harvesting extends ActionSkill<VeinId> {
+  /** Harvest a vein (Into the Abyss). */
   harvest(vein: VeinId, opts?: ActOptions) {
     return this.act(vein, opts);
   }
@@ -317,9 +371,11 @@ export class Skills {
 export class Bank {
   constructor(private m: Melvor) {}
 
+  /** How many of an item you have (0 if none). */
   count(item: ItemId): number {
     return this.m.state.bank[item] ?? 0;
   }
+  /** True if you have at least `quantity` (default 1). */
   has(item: ItemId, quantity = 1): boolean {
     return this.count(item) >= quantity;
   }
@@ -327,15 +383,19 @@ export class Bank {
   items(): { id: ItemId; quantity: number }[] {
     return Object.entries(this.m.state.bank).map(([id, quantity]) => ({ id: id as ItemId, quantity }));
   }
+  /** Bank slots in use. */
   get usedSlots(): number {
     return this.m.state.bankSpace.used;
   }
+  /** Total bank slots. */
   get maxSlots(): number {
     return this.m.state.bankSpace.max;
   }
+  /** Bank slots left. */
   get freeSlots(): number {
     return Math.max(0, this.maxSlots - this.usedSlots);
   }
+  /** No free slots: a new kind of item has nowhere to go. */
   get full(): boolean {
     return this.freeSlots === 0;
   }
@@ -348,6 +408,7 @@ export class Bank {
   open(item: ItemId, quantity = 1) {
     return this.m.connection.call('bank.open', { item, quantity });
   }
+  /** Bury bones for prayer points. */
   bury(item: ItemId, quantity = 1) {
     return this.m.connection.call('bank.bury', { item, quantity });
   }
@@ -359,9 +420,11 @@ export class Player {
   private get p() {
     return this.m.state.player;
   }
+  /** Current hitpoints. */
   get hp(): number {
     return this.p.hp;
   }
+  /** Maximum hitpoints. */
   get maxHp(): number {
     return this.p.maxHp;
   }
@@ -369,56 +432,72 @@ export class Player {
   get hpFraction(): number {
     return this.p.maxHp > 0 ? this.p.hp / this.p.maxHp : 0;
   }
+  /** Prayer points. */
   get prayerPoints(): number {
     return this.p.prayerPoints;
   }
+  /** Combat level. */
   get combatLevel(): number {
     return this.p.combatLevel;
   }
+  /** 'melee', 'ranged' or 'magic'. */
   get attackType(): string {
     return this.p.attackType;
   }
-  get food() {
+  /** Equipped food: the selected slot, and each slot's item and quantity. */
+  get food(): PlayerState['food'] {
     return this.p.food;
   }
   /** The currently selected food slot. */
-  get currentFood() {
+  get currentFood(): FoodSlotState {
     return this.p.food.slots[this.p.food.selected] ?? { item: null, quantity: 0 };
   }
-  get equipment() {
+  /** Equipped items by slot id. Empty slots are left out. */
+  get equipment(): PlayerState['equipment'] {
     return this.p.equipment;
   }
+  /** Prayers that are on. */
   get activePrayers(): PrayerId[] {
     return this.p.activePrayers as PrayerId[];
   }
+  /** The item in a slot, or null. */
   equipped(slot: EquipmentSlotId): ItemId | null {
     return (this.p.equipment[slot]?.item as ItemId) ?? null;
   }
+  /** True if the item is equipped in any slot. */
   isEquipped(item: ItemId): boolean {
     return Object.values(this.p.equipment).some((e) => e.item === item);
   }
 
+  /** Eat the selected food `times` times (default 1). */
   eat(times = 1) {
     return this.m.connection.call('player.eat', { quantity: times });
   }
+  /** Move food from the bank into a food slot (at most what you have). */
   equipFood(item: FoodId | ItemId, quantity: number) {
     return this.m.connection.call('player.equipFood', { item, quantity });
   }
+  /** Choose which food slot to eat from. */
   selectFood(slot: number) {
     return this.m.connection.call('player.selectFood', { slot });
   }
+  /** Equip an item from the bank. Defaults: its first valid slot, quantity 1, the current equipment set. */
   equip(item: ItemId, opts: { slot?: EquipmentSlotId; quantity?: number; set?: number } = {}) {
     return this.m.connection.call('player.equip', { item, ...opts });
   }
+  /** Empty a slot (in the current equipment set unless `set` is given). */
   unequip(slot: EquipmentSlotId, set?: number) {
     return this.m.connection.call('player.unequip', { slot, set });
   }
+  /** Switch equipment set (0-based). */
   setEquipmentSet(set: number) {
     return this.m.connection.call('player.setEquipmentSet', { set });
   }
+  /** Turn a prayer on or off. */
   togglePrayer(prayer: PrayerId) {
     return this.m.connection.call('player.togglePrayer', { prayer });
   }
+  /** Choose an attack style (see `AttackStyles`). */
   setAttackStyle(style: AttackStyleId) {
     return this.m.connection.call('player.setAttackStyle', { style });
   }
@@ -430,21 +509,27 @@ export class Combat {
   private get c() {
     return this.m.state.combat;
   }
+  /** You're in combat. */
   get active(): boolean {
     return this.c.active;
   }
+  /** The combat area you're in. */
   get area(): CombatAreaId | null {
     return this.c.area as CombatAreaId | null;
   }
+  /** The monster you're fighting. */
   get monster(): MonsterId | null {
     return this.c.monster as MonsterId | null;
   }
+  /** The enemy's hitpoints. */
   get enemyHp(): number {
     return this.c.enemyHp;
   }
+  /** The enemy's maximum hitpoints. */
   get enemyMaxHp(): number {
     return this.c.enemyMaxHp;
   }
+  /** Your slayer task, or null. */
   get slayerTask() {
     return this.c.slayerTask as { monster: MonsterId; killsLeft: number } | null;
   }
@@ -533,6 +618,7 @@ export class GameData {
 
   constructor(private m: Melvor) {}
 
+  /** One item's details. Cached. */
   async item(id: ItemId): Promise<ItemInfo> {
     let info = this.itemCache.get(id);
     if (!info) {
@@ -541,9 +627,11 @@ export class GameData {
     }
     return info;
   }
+  /** Items, optionally filtered by ids, type or category. */
   items(filter: { ids?: ItemId[]; type?: string; category?: string } = {}): Promise<ItemInfo[]> {
     return this.m.connection.call('data.items', filter);
   }
+  /** A skill's actions or recipes. Cached; pass `true` to refresh. */
   async actions(skill: SkillId | (string & {}), refresh = false): Promise<ActionInfo[]> {
     let list = refresh ? undefined : this.actionCache.get(skill);
     if (!list) {
@@ -552,9 +640,11 @@ export class GameData {
     }
     return list;
   }
+  /** Every monster. Cached. */
   async monsters(): Promise<MonsterInfo[]> {
     return (this.monsterCache ??= await this.m.connection.call('data.monsters'));
   }
+  /** Every combat area, slayer area and dungeon. Cached. */
   async areas(): Promise<AreaInfo[]> {
     return (this.areaCache ??= await this.m.connection.call('data.areas'));
   }
@@ -569,14 +659,23 @@ type StateListener = (state: GameState, changed: StateSection[]) => void;
 export class Melvor {
   /** Live mirror of the game state. Updated a few times per second and before every call returns. */
   readonly state: GameState;
+  /** Every skill: levels, XP, mastery and the action methods. */
   readonly skills: Skills;
+  /** Bank contents, selling, opening and burying. */
   readonly bank: Bank;
+  /** HP, food, equipment and prayers. */
   readonly player: Player;
+  /** Fighting monsters and dungeons. */
   readonly combat: Combat;
+  /** Buying from the shop. */
   readonly shop: Shop;
+  /** Game data: items, skill actions, monsters, areas. */
   readonly data: GameData;
+  /** This script's name, as shown in the in-game panel. */
   readonly name: string;
+  /** This connection's id in the game. */
   readonly clientId: number;
+  /** Version of the mod running in the game. */
   readonly runtimeVersion: string;
 
   private stateVersion: number;
@@ -591,6 +690,7 @@ export class Melvor {
 
   /** @internal use connect() */
   constructor(
+    /** The low-level connection. Most scripts never need it. */
     readonly connection: Connection,
     hello: { state: GameState; stateVersion: number; clientId: number; runtimeVersion: string },
     name: string,
@@ -618,9 +718,11 @@ export class Melvor {
   get gp(): number {
     return this.state.currencies['melvorD:GP'] ?? 0;
   }
+  /** Slayer Coins. */
   get slayerCoins(): number {
     return this.state.currencies['melvorD:SlayerCoins'] ?? 0;
   }
+  /** Any currency by id, e.g. 'melvorD:GP'. */
   currency(id: string): number {
     return this.state.currencies[id] ?? 0;
   }
@@ -839,6 +941,7 @@ export class Melvor {
     });
   }
 
+  /** Wait `ms` milliseconds. */
   sleep(ms: number): Promise<void> {
     return sleep(ms);
   }
@@ -849,12 +952,15 @@ export class Melvor {
   log(...args: unknown[]) {
     this.emitLog('info', args);
   }
+  /** Like `log`, as a warning. */
   warn(...args: unknown[]) {
     this.emitLog('warn', args);
   }
+  /** Like `log`, as an error. */
   error(...args: unknown[]) {
     this.emitLog('error', args);
   }
+  /** Like `log`, in green. */
   success(...args: unknown[]) {
     this.emitLog('success', args);
   }
@@ -876,9 +982,11 @@ export class Melvor {
   cancelJobs() {
     return this.connection.call('action.cancel', {});
   }
+  /** Turn Script Mode on or off (the panel toggle). Always on in the Scripted gamemode. */
   setScriptMode(enabled: boolean) {
     return this.connection.call('runtime.setScriptMode', { enabled });
   }
+  /** Mod version, mode, speed and connected scripts. */
   info(): Promise<RuntimeInfo> {
     return this.connection.call('runtime.info');
   }
@@ -896,6 +1004,7 @@ export class Melvor {
     return this.connection.call('debug.eval', { code, depth }) as Promise<T>;
   }
 
+  /** Disconnect. Scripts started with `run` don't need to. */
   close(): Promise<void> {
     return this.connection.close();
   }

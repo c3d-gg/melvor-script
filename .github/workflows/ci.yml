@@ -17,4 +17,5 @@ jobs:
       - run: bun run typecheck
       - run: bun test
       - run: bun fmt --check
+      - run: bun run docs --check
       - run: bun run pack

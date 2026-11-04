@@ -22,6 +22,8 @@ run(async (m) => {
 });
 ```
 
+**[API reference](docs/API.md)**: every call, property, result, event and error.
+
 ## How it works
 
 ```
@@ -106,10 +108,13 @@ Put your files in `scripts/` (`melvor init` starts you off with `hello.ts`). Eac
 
 Examples (in [`examples/`](examples)): `hello.ts` (read state) · `loop.ts` (setInterval woodcut/burn) · `fight-loop.ts` (turn-based combat loop) · `woodcut-and-burn.ts` · `best-tree.ts` · `mine-and-smith.ts` · `food-and-fight.ts`.
 
+The short version is below. The full one, with every property, result field, event and error, is the **[API reference](docs/API.md)**.
+
 |                    |                                                                                                                                                                                                      |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Pacing             | `m.ready` · `m.cooldown` · `await m.whenReady()` · `m.instant` · `m.speed`                                                                                                                           |
 | `m.skills.<skill>` | `.level .xp .xpToNext`, `.actions()` (recipes with level/costs/unlocked), `.canDo(id)`                                                                                                               |
+| Mastery            | `.masteryPool` (live) · `await .mastery(id)` · `.masteries()` · `.spendMasteryPool(id, levels?)`                                                                                                     |
 | Gathering          | `woodcutting.cut(trees)` · `fishing.fish` · `mining.mine` · `thieving.pickpocket` · `astrology.study` · `archaeology.excavate` · `harvesting.harvest` · `agility.run()`                              |
 | Artisan            | `firemaking.burn` · `cooking.cook` · `smithing.smith` · `fletching.fletch` · `crafting.craft` · `runecrafting.craft` · `herblore.brew` · `summoning.create` · `magic.cast(spell, { item })`          |
 | Options            | `{ count: n \| Infinity, signal: AbortSignal, allowStop: true }`                                                                                                                                     |
@@ -121,7 +126,7 @@ Examples (in [`examples/`](examples)): `hello.ts` (read state) · `loop.ts` (set
 | Events             | `m.on('levelUp' \| 'monsterKilled' \| 'jobFinished' \| ..., fn)` · `m.once(...)` · `m.onState(fn)` · `m.waitFor(state => ...)`                                                                       |
 | Misc               | `m.gp` · `m.log/warn/success/error` (also shown in the game) · `m.stopAll()` · `m.cancelJobs()` · `m.setScriptMode(on)` · `m.eval('game.woodcutting.level')` (needs Allow eval)                      |
 
-Eating, looting, banking, the shop and equipment changes are not actions: they have no cooldown.
+Eating, looting, banking, the shop, equipment changes and spending mastery pool XP are not actions: they have no cooldown.
 
 Actions return an `ActionResult` (`completed`, `actions`, `xp`, `items` deltas, `durationMs`). If a multi-action job ends early (bank full, out of materials, cancelled) it throws `ActionStoppedError` with the reason, unless you pass `allowStop: true`. The game refuses actions it can't start up front, with `LOCKED` or `MISSING_ITEMS` (`e.missing` lists what you lack).
 

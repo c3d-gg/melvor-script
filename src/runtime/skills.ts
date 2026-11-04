@@ -75,7 +75,7 @@ export function isActionUnlocked(skill: GameObject, action: GameObject): boolean
   return !lockedRealm(action) && levelUnlocked(skill, action) && unmetRequirements(skill, action).length === 0;
 }
 
-function assertUnlocked(skill: GameObject, action: GameObject) {
+export function assertUnlocked(skill: GameObject, action: GameObject) {
   const realm = lockedRealm(action);
   if (realm) {
     throw new RpcError('LOCKED', `${action.name} is in the ${realm.name ?? realm.id}, which you haven't unlocked`, {

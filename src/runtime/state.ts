@@ -6,6 +6,7 @@
 import type { ActionState, CombatState, GameState, PlayerState, SkillState, StateSection } from '../shared/protocol.ts';
 import { safe, type GameObject, type RuntimeEnv } from './env.ts';
 import { allObjects, idOf } from './lookup.ts';
+import { masteryPools } from './mastery.ts';
 import { version } from '../../package.json';
 
 /** The package version: `bun run release` bumps it in package.json, the only place it lives. */
@@ -64,6 +65,8 @@ function buildSkills(env: RuntimeEnv): Record<string, SkillState> {
       st.abyssalLevel = safe(() => s.abyssalLevel, 0);
       st.abyssalXP = safe(() => s.abyssalXP, 0);
     }
+    const pools = masteryPools(s);
+    if (pools) st.masteryPools = pools;
     out[s.id] = st;
   }
   return out;

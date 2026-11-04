@@ -34,14 +34,23 @@ export interface RpcNotification {
 }
 
 export type ErrorCode =
+  /** A bad parameter (wrong type, ambiguous id, negative count...). */
   | 'BAD_REQUEST'
+  /** The mod doesn't know this call: the client is newer than the mod. */
   | 'UNKNOWN_METHOD'
+  /** No item, action, monster... with that id. */
   | 'NOT_FOUND'
+  /** Not unlocked yet: level, requirements, realm, or a buy limit. */
   | 'LOCKED'
+  /** Not enough materials. `error.missing` lists what's short. */
   | 'MISSING_ITEMS'
+  /** Another action is still running. */
   | 'BUSY'
+  /** Can't be done here (a skill without mastery, a mode that doesn't allow it...). */
   | 'UNSUPPORTED'
+  /** The game refused, or a job ended early (`ActionStoppedError` / `FightStoppedError`). */
   | 'FAILED'
+  /** The game isn't in the right state yet, e.g. `attack()` with no fight going. */
   | 'NOT_READY'
   /** Instant mode: the shared action cooldown hasn't finished. `data.readyInMs` says how long is left. */
   | 'COOLDOWN'
@@ -49,6 +58,7 @@ export type ErrorCode =
   | 'RATE_LIMITED'
   /** Turned off by the player's settings (e.g. eval without "Allow eval"). */
   | 'FORBIDDEN'
+  /** Something threw unexpectedly inside the game or the mod. The message says what. */
   | 'INTERNAL';
 
 // ---------------------------------------------------------------------------
@@ -65,6 +75,25 @@ export interface SkillState {
   unlocked: boolean;
   abyssalLevel?: number;
   abyssalXP?: number;
+  /** Mastery pool per realm id ('melvorD:Melvor', 'melvorItA:Abyssal'). Only on skills with mastery. */
+  masteryPools?: Record<string, MasteryPoolState>;
+}
+
+export interface MasteryPoolState {
+  /** XP in the pool. */
+  xp: number;
+  /** The most it can hold (with your pool-cap bonuses). */
+  cap: number;
+  /** Progress as the game shows it (0-100). Pool checkpoints give bonuses at 10, 25, 50 and 95. */
+  percent: number;
+}
+
+export interface MasteryInfo {
+  /** Mastery level, 1 to 99. */
+  level: number;
+  xp: number;
+  /** Mastery XP still needed for the next level (0 at 99). */
+  xpToNext: number;
 }
 
 export interface FoodSlotState {
@@ -185,16 +214,21 @@ export interface ActParams {
 export type JobStatus = 'completed' | 'stopped' | 'cancelled';
 
 export interface ActionResult {
+  /** The job's id (as in the jobStarted / jobFinished events). */
   jobId: number;
+  /** Skill id. */
   skill: string;
+  /** Actions asked for (null = until stopped). */
   requested: number | null;
   /** Actions done (instant mode: clicks). */
   completed: number;
   /** Instant mode: actions the clicks performed. More than `completed` with "actions per click" bonuses. */
   actions?: number;
+  /** 'completed', or 'stopped' / 'cancelled' if it ended early. */
   status: JobStatus;
   /** Why the job ended early (status !== 'completed'). */
   reason?: string;
+  /** How long the job took. */
   durationMs: number;
   /** skillId -> xp gained during the job. */
   xp: Record<string, number>;
@@ -212,10 +246,15 @@ export interface AttackResult {
   actions: number;
   /** Enemies that died from this click. */
   kills: number;
+  /** The enemy's hitpoints after the click. */
   enemyHp: number;
+  /** Your hitpoints after the click. */
   hp: number;
+  /** skillId -> xp gained. */
   xp: Record<string, number>;
+  /** itemId -> items gained. */
   items: Record<string, number>;
+  /** ms until you can act again. */
   readyInMs: number;
 }
 
@@ -386,6 +425,14 @@ export interface Methods {
   'player.setEquipmentSet': [{ set: number }, { set: number }];
   'player.togglePrayer': [{ prayer: string }, { active: boolean }];
   'player.setAttackStyle': [{ style: string }, { style: string }];
+
+  /** Mastery of the given actions (default: all of the skill's actions), keyed by action id. */
+  'mastery.get': [{ skill: string; actions?: string[] }, Record<string, MasteryInfo>];
+  /** Spend mastery pool XP on an action, like the game's "Spend Mastery XP" menu. */
+  'mastery.spendPool': [
+    { skill: string; action: string; levels?: number; allowCheckpointLoss?: boolean },
+    MasteryInfo & { spent: number },
+  ];
 
   'data.item': [{ id: string }, ItemInfo];
   'data.items': [{ ids?: string[]; type?: string; category?: string }, ItemInfo[]];

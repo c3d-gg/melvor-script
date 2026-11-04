@@ -129,8 +129,11 @@ class Bank extends Emitter {
   }
 }
 
+/** The normal realm (Into the Abyss adds Abyssal and Eternal). */
+export const MELVOR_REALM = { id: 'melvorD:Melvor', name: 'Melvor Realm', isUnlocked: true };
+
 export class Action extends Obj {
-  realm = 'melvorD:Melvor';
+  realm: { id: string; name: string; isUnlocked: boolean } = MELVOR_REALM;
   constructor(
     id: string,
     name: string,
@@ -182,6 +185,48 @@ export class GatheringSkill extends Emitter {
   }
   isMasteryActionUnlocked(a: Action) {
     return this.level >= a.level;
+  }
+
+  // Mastery: mirrors SkillWithMastery in skill.js (levels from fakeExp below).
+  hasMastery = true;
+  masteryLevelCap = 99;
+  actionMastery = new Map<Action, { xp: number; level: number }>();
+  _masteryPoolXP = new Map<unknown, number>();
+  /** Pool checkpoints, % of the base cap (masteryPoolBonuses). */
+  poolCheckpoints = [10, 25, 50, 95];
+  getMasteryLevel(a: Action) {
+    return this.actionMastery.get(a)?.level ?? 1;
+  }
+  getMasteryXP(a: Action) {
+    return this.actionMastery.get(a)?.xp ?? 0;
+  }
+  getRealmsWithMastery() {
+    return [...new Set(this.actions.allObjects.map((a) => a.realm))];
+  }
+  getBaseMasteryPoolCap(realm: unknown) {
+    return this.actions.allObjects.filter((a) => a.realm === realm).length * 500000;
+  }
+  getMasteryPoolCap(realm: unknown) {
+    return this.getBaseMasteryPoolCap(realm);
+  }
+  getMasteryPoolXP(realm: unknown) {
+    return this._masteryPoolXP.get(realm) ?? 0;
+  }
+  getMasteryPoolProgress(realm: unknown) {
+    return Math.min(100, (100 * this.getMasteryPoolXP(realm)) / this.getBaseMasteryPoolCap(realm));
+  }
+  getPoolBonusChange(realm: unknown, xp: number) {
+    const count = (x: number) =>
+      this.poolCheckpoints.filter((p) => (100 * x) / this.getBaseMasteryPoolCap(realm) >= p).length;
+    const old = this.getMasteryPoolXP(realm);
+    return count(old + xp) - count(old);
+  }
+  exchangePoolXPForActionXP(a: Action, xp: number) {
+    const m = this.actionMastery.get(a) ?? { xp: 0, level: 1 };
+    m.xp += xp;
+    m.level = Math.min(this.masteryLevelCap, fakeExp.xpToLevel(m.xp));
+    this.actionMastery.set(a, m);
+    this._masteryPoolXP.set(a.realm, this.getMasteryPoolXP(a.realm) - xp);
   }
   addXP(n: number) {
     const before = this._level;
@@ -563,4 +608,10 @@ export class FakeGame {
   }
 }
 
-export const fakeClasses = { GatheringSkill, CraftingSkill, ArtisanSkill };
+/** Melvor's `exp` table, simplified: level L starts at (L - 1) * 100 XP (matches addXP above). */
+export const fakeExp = {
+  levelToXP: (level: number) => (level - 1) * 100,
+  xpToLevel: (xp: number) => 1 + Math.floor(xp / 100),
+};
+
+export const fakeClasses = { GatheringSkill, CraftingSkill, ArtisanSkill, exp: fakeExp };

@@ -12,7 +12,7 @@ import * as path from 'node:path';
 import WebSocket from 'ws';
 import { createRuntime, type Runtime } from '../src/runtime/index.ts';
 import { connect, ActionStoppedError, MelvorError, type Melvor } from '../src/client/index.ts';
-import { FakeGame, fakeClasses } from './fake-game.ts';
+import { FakeGame, MELVOR_REALM, fakeClasses } from './fake-game.ts';
 
 const TOKEN = 'x'.repeat(48);
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'melvor-script-test-'));
@@ -316,6 +316,48 @@ describe('thieving stuns', () => {
     assert.equal(r.completed, 3);
     assert.equal(game.settings.continueThievingOnStun, false); // restored
     assert.equal(Object.prototype.hasOwnProperty.call(game.settings, 'continueThievingOnStun'), true);
+  });
+});
+
+describe('mastery', () => {
+  const oak = () => game.woodcutting.actions.getObjectByID('test:Oak')!;
+  const setPool = (xp: number) => game.woodcutting._masteryPoolXP.set(MELVOR_REALM, xp);
+
+  it('reads action mastery and the pool', async () => {
+    game.woodcutting.actionMastery.set(oak(), { xp: 250, level: 3 });
+    setPool(100_000); // 2 trees x 500k base cap: 10%
+    const m = await client();
+    const wc = m.skills.get('test:Woodcutting');
+    assert.deepEqual(await wc.mastery('test:Oak'), { level: 3, xp: 250, xpToNext: 50 });
+    const all = await wc.masteries();
+    assert.deepEqual(Object.keys(all).sort(), ['test:Oak', 'test:Yew']);
+    assert.equal(all['test:Yew']!.level, 1);
+    assert.deepEqual(wc.masteryPool, { xp: 100_000, cap: 1_000_000, percent: 10 });
+  });
+
+  it('spends pool XP, but not past a pool checkpoint unless told to', async () => {
+    setPool(100_050); // just above the 10% checkpoint
+    const m = await client();
+    const wc = m.skills.get('test:Woodcutting');
+    // Level 1 -> 2 costs 101 XP, which would drop the pool to 9.99%.
+    await assert.rejects(wc.spendMasteryPool('test:Oak'), /below a checkpoint/);
+    assert.equal(game.woodcutting.getMasteryLevel(oak()), 1);
+    const r = await wc.spendMasteryPool('test:Oak', 1, { allowCheckpointLoss: true });
+    assert.deepEqual(r, { level: 2, xp: 101, xpToNext: 99, spent: 101 });
+    assert.equal(game.woodcutting.getMasteryPoolXP(MELVOR_REALM), 99_949);
+    assert.equal(wc.masteryPool?.xp, 99_949); // state was flushed before the reply
+  });
+
+  it('refuses a short pool, a maxed action and skills without mastery', async () => {
+    setPool(50);
+    const m = await client();
+    const wc = m.skills.get('test:Woodcutting');
+    await assert.rejects(wc.spendMasteryPool('test:Oak'), /needs 101 pool XP; the pool has 50/);
+    game.woodcutting.actionMastery.set(oak(), { xp: 1e7, level: 99 });
+    setPool(1e7);
+    await assert.rejects(wc.spendMasteryPool('test:Oak'), /already mastery level 99/);
+    (game.thieving as { hasMastery: boolean }).hasMastery = false;
+    await assert.rejects(m.skills.get('test:Thieving').mastery('test:Man'), /has no mastery/);
   });
 });
 

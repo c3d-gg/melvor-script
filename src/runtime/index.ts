@@ -16,6 +16,7 @@ import { CombatController, registerCombat } from './api/combat.ts';
 import type { ApiContext } from './api/context.ts';
 import { registerData } from './api/data.ts';
 import { registerDebug } from './api/debug.ts';
+import { registerMastery } from './api/mastery.ts';
 import { registerPlayer } from './api/player.ts';
 import { ClickController } from './clicks.ts';
 import { configuredSpeed, loadOrCreateConfig, updateConfig, type ConnectionConfig } from './config.ts';
@@ -399,6 +400,7 @@ export function createRuntime(env: RuntimeEnv): Runtime {
   registerCombat(api);
   registerPlayer(api);
   registerData(api);
+  registerMastery(api);
   registerDebug(api);
 
   // ---------------------------------------------------------------------------
