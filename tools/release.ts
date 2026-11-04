@@ -157,7 +157,8 @@ async function main() {
   }
   if ((await out($`git tag --list ${`v${next}`}`)) !== '') fail(`v${next} already exists.`);
 
-  const date = new Date().toISOString().slice(0, 10);
+  const now = new Date(); // local date: UTC would say tomorrow on an evening release
+  const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const notes = releaseNotes(next, commits, date);
   console.log(`\n${current} → ${next}  (${commits.length} commit${commits.length > 1 ? 's' : ''} since ${lastTag})\n`);
   console.log(notes, '\n');
