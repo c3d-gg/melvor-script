@@ -510,6 +510,14 @@ export class ClickController {
     const s = await job.promise;
     // A real-time fight ends by stopping combat, which collects the loot. Do the same here.
     for (const [id, n] of Object.entries(this.combat.loot())) add(job.items, id, n);
+    // ...and leave combat once the kills are done, like real-time fights.
+    //
+    // NOTE: the other option is to stay in combat with the next monster spawned, so a later
+    // attack() carries on. That was the original Scripted Mode behaviour, and it's harmless there
+    // because nothing happens between clicks. If players ask for it back, make it opt-in rather
+    // than the default, e.g. fight(monster, { kills, stayInCombat: true }); scripts that want an
+    // endless fight already have start() + attack() (see examples/fight-loop.ts).
+    if (s.status === 'completed') this.combat.leave();
     return {
       kills: job.kills,
       status: s.status,

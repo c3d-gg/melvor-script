@@ -38,7 +38,7 @@ Create a character in **Scripted Mode**. It uses Melvor's built-in _instant acti
 - **Every action is a click that happens at once.** Cutting a tree gives you the logs the moment you ask.
 - **Then a cooldown:** the next action can't start until _that action's normal time ÷ speed_ has passed. At the default speed of 10, a 3s tree means a 0.3s cooldown. Speed bonuses still count: a better axe means a shorter cooldown.
 - **Nothing idles.** No offline progress for skills. Your own mouse clicks work too, and share the same cooldown.
-- **Combat is turn-based.** Each `attack()` is one round: you swing, then the monster swings. Nothing happens between rounds, so you can eat exactly when you need to. Monsters respawn `speed`× faster too.
+- **Combat is turn-based.** Each `attack()` is one round: you swing, then the monster swings. Nothing happens between rounds, so you can eat exactly when you need to. Monsters respawn `speed`× faster too. `fight(monster, { kills })` attacks until that many have died, then leaves combat; for an endless fight use `start()` + `attack()` (see `examples/fight-loop.ts`).
 - "Actions per click" bonuses give extra actions for the same cooldown.
 
 Set the speed in the game: sidebar **Mod Settings → Melvor Script → Speed** (1 to 1000). It takes effect right away. The cooldown never goes below 50 ms.

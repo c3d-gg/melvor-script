@@ -56,12 +56,32 @@ function unmetRequirements(skill: GameObject, action: GameObject): GameObject[] 
   });
 }
 
-/** True when the player can do this action: level, abyssal level and any other requirements. */
+/**
+ * The action's realm (Into the Abyss: Abyssal, Eternal) when the player hasn't unlocked it.
+ * The game's own unlock checks ignore realms; its UI simply never shows a locked realm's actions.
+ */
+function lockedRealm(action: GameObject): GameObject | null {
+  const realm = action.realm;
+  if (!realm || typeof realm !== 'object') return null;
+  try {
+    return realm.isUnlocked === false ? realm : null;
+  } catch {
+    return null;
+  }
+}
+
+/** True when the player can do this action: realm, level, abyssal level and any other requirements. */
 export function isActionUnlocked(skill: GameObject, action: GameObject): boolean {
-  return levelUnlocked(skill, action) && unmetRequirements(skill, action).length === 0;
+  return !lockedRealm(action) && levelUnlocked(skill, action) && unmetRequirements(skill, action).length === 0;
 }
 
 function assertUnlocked(skill: GameObject, action: GameObject) {
+  const realm = lockedRealm(action);
+  if (realm) {
+    throw new RpcError('LOCKED', `${action.name} is in the ${realm.name ?? realm.id}, which you haven't unlocked`, {
+      realm: realm.id,
+    });
+  }
   if (!levelUnlocked(skill, action)) {
     const abyssal = action.abyssalLevel > 0 ? ` and abyssal level ${action.abyssalLevel}` : '';
     throw new RpcError('LOCKED', `${action.name} requires ${skill.name} level ${action.level}${abyssal}`, {

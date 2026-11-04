@@ -201,6 +201,11 @@ export class CombatController {
     return this.stopCombat();
   }
 
+  /** Leave combat without cancelling anything (instant-mode fights end this way once their kills are done). */
+  leave(): boolean {
+    return this.stopCombat();
+  }
+
   cancelOwnedBy(sessionId: number) {
     if (this.job && this.job.ownerId === sessionId) {
       this.finish('cancelled', 'client disconnected');

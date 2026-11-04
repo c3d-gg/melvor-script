@@ -256,14 +256,14 @@ describe('instant combat', () => {
     assert.equal(game.combat.playerActs, 1);
   });
 
-  it('fight N kills: attack clicks until they die, loot collected', async () => {
+  it('fight N kills: attack clicks until they die, loot collected, then leave combat', async () => {
     const m = await client();
     const r = await m.combat.fight('test:Chicken' as never, { kills: 2 });
     assert.equal(r.kills, 2);
     assert.equal(r.attacks, 6); // 3 HP each
     assert.deepEqual(r.items, { 'test:Bones': 2 });
     assert.equal(game.bank.getQty(item('test:Bones')), 2);
-    assert.equal(game.combat.isActive, true, 'stays in combat for the next attack()');
+    assert.equal(game.combat.isActive, false, 'leaves combat once the kills are done, like real-time fights');
   });
 
   it('a kill registers within the click that dealt it', async () => {
@@ -396,5 +396,27 @@ describe('unlocks', () => {
 
     tree.requirements[0]!.met = true;
     assert.equal((await wc.actions(true)).find((a) => a.id === 'test:Ritual')?.unlocked, true);
+  });
+});
+
+describe('realms', () => {
+  it("an action in a realm you haven't unlocked (Into the Abyss) is listed as locked and refused", async () => {
+    const realm = { id: 'test:Eternal', name: 'Eternal Realm', isUnlocked: false };
+    const tree = new Action('test:Starwood', 'Starwood Tree', 0, 10, item('test:Oak_Logs'));
+    (tree as unknown as { realm: unknown }).realm = realm;
+    game.woodcutting.actions.register(tree);
+    const m = await client();
+    const wc = m.skills.get('test:Woodcutting');
+    const listed = (await wc.actions(true)).find((a) => a.id === 'test:Starwood');
+    assert.equal(listed?.unlocked, false);
+    assert.equal(listed?.realm, 'test:Eternal');
+    await assert.rejects(
+      wc.act('test:Starwood'),
+      (e: MelvorError) => e.code === 'LOCKED' && /Eternal Realm, which you haven't unlocked/.test(e.message),
+    );
+    assert.equal(logs(), 0);
+
+    realm.isUnlocked = true;
+    assert.equal((await wc.actions(true)).find((a) => a.id === 'test:Starwood')?.unlocked, true);
   });
 });
