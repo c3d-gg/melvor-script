@@ -6,8 +6,10 @@
 import type { ActionState, CombatState, GameState, PlayerState, SkillState, StateSection } from '../shared/protocol.ts';
 import { safe, type GameObject, type RuntimeEnv } from './env.ts';
 import { allObjects, idOf } from './lookup.ts';
+import { version } from '../../package.json';
 
-export const RUNTIME_VERSION = '0.2.0';
+/** The package version: `bun run release` bumps it in package.json, the only place it lives. */
+export const RUNTIME_VERSION: string = version;
 
 export interface StateContext {
   env: RuntimeEnv;
