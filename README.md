@@ -70,13 +70,13 @@ On a normal character, each scripted action takes the skill's normal interval. A
 
 1. Install [Bun](https://bun.com). Scripts run on Bun, so they can use Bun APIs too (`Bun.file`, `Bun.$`, `bun:sqlite`, ...).
 2. **Get Creator Toolkit**, the official mod for loading mods from a file. In Melvor, open the **Mod Manager** (button on the character-select screen, or sidebar _Modding → Mod Manager_) → **Browse** → search `Creator Toolkit` → **Subscribe**, then restart the game.
-3. **Install this mod.** Download [melvor-script-v0.3.0.zip](https://github.com/c3d-gg/melvor-script/releases/download/v0.3.0/melvor-script-v0.3.0.zip) from the [latest release](https://github.com/c3d-gg/melvor-script/releases/latest). In the game, open Creator Toolkit (sidebar _Modding → Creator Toolkit_, or the orange ✱ button next to the Mod Manager button) → **Local Mods** → **Add Mod**: name it `Melvor Script`, choose **Modfile**, pick the zip, **Save**, and restart the game.
+3. **Install this mod.** Download [melvor-script-v0.4.0.zip](https://github.com/c3d-gg/melvor-script/releases/download/v0.4.0/melvor-script-v0.4.0.zip) from the [latest release](https://github.com/c3d-gg/melvor-script/releases/latest). In the game, open Creator Toolkit (sidebar _Modding → Creator Toolkit_, or the orange ✱ button next to the Mod Manager button) → **Local Mods** → **Add Mod**: name it `Melvor Script`, choose **Modfile**, pick the zip, **Save**, and restart the game.
 4. **Make a folder for your scripts:**
 
    ```sh
    mkdir my-melvor-scripts && cd my-melvor-scripts
    bun init -y
-   bun add github:c3d-gg/melvor-script#v0.3.0
+   bun add github:c3d-gg/melvor-script#v0.4.0
    bunx melvor init
    ```
 

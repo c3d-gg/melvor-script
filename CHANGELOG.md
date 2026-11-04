@@ -4,6 +4,17 @@ All notable changes, newest first. Versions follow [Semantic Versioning](https:/
 bump may change behaviour). Entries are written by `bun run release` from
 [Conventional Commit](https://www.conventionalcommits.org) messages.
 
+## [0.4.0](https://github.com/c3d-gg/melvor-script/releases/tag/v0.4.0) - 2026-11-04
+
+### Features
+
+- install with bun add github:c3d-gg/melvor-script; melvor init sets up a scripts folder ([ac43e51](https://github.com/c3d-gg/melvor-script/commit/ac43e51d1eb555ce91d400cc7d7cb3def0bc6587))
+
+### Fixes
+
+- ship @types/ws so projects that install melvor-script type-check ([3782621](https://github.com/c3d-gg/melvor-script/commit/3782621dfeb75757f13f883b22f50a79248def67))
+- typecheck cleanly under bun init's strict TypeScript settings ([4ac87bc](https://github.com/c3d-gg/melvor-script/commit/4ac87bc80e6bfe931c30e2e5abaae943e5c78dce))
+
 ## [0.3.0](https://github.com/c3d-gg/melvor-script/releases/tag/v0.3.0) - 2026-11-03
 
 ### Other changes
