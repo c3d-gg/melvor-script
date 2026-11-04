@@ -1,7 +1,7 @@
 /** The version maths behind `bun run release` (tools/release.ts). */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { bumpFor, bumpVersion, parseCommit, releaseNotes } from '../tools/release.ts';
+import { bumpFor, bumpVersion, parseCommit, pointReadmeAt, releaseNotes } from '../tools/release.ts';
 
 const c = (subject: string, body = '') => parseCommit('0123456789abcdef', subject, body);
 
@@ -45,5 +45,25 @@ describe('release versioning', () => {
     assert.match(notes, /### Fixes\n\n- \*\*ui:\*\* broken thing/);
     assert.match(notes, /### Other changes\n\n- Plain message/);
     assert.doesNotMatch(notes, /tidy/);
+  });
+});
+
+describe('README install instructions', () => {
+  it('point at the release being cut', () => {
+    const before = [
+      'bun add github:c3d-gg/melvor-script#v0.3.0',
+      'download melvor-script-v0.3.0.zip',
+      'https://github.com/c3d-gg/melvor-script/releases/download/v0.3.0/melvor-script-v0.3.0.zip',
+      'unrelated v0.3.0 stays',
+    ].join('\n');
+    assert.equal(
+      pointReadmeAt(before, '0.4.0'),
+      [
+        'bun add github:c3d-gg/melvor-script#v0.4.0',
+        'download melvor-script-v0.4.0.zip',
+        'https://github.com/c3d-gg/melvor-script/releases/download/v0.4.0/melvor-script-v0.4.0.zip',
+        'unrelated v0.3.0 stays',
+      ].join('\n'),
+    );
   });
 });

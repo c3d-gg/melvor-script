@@ -20,6 +20,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const REPO_URL = 'https://github.com/c3d-gg/melvor-script';
 const PKG = join(ROOT, 'package.json');
 const CHANGELOG = join(ROOT, 'CHANGELOG.md');
+const README = join(ROOT, 'README.md');
 $.cwd(ROOT);
 
 type Bump = 'major' | 'minor' | 'patch';
@@ -88,6 +89,14 @@ export function releaseNotes(version: string, commits: Commit[], date: string): 
     if (items.length) out.push('', `### ${title}`, '', ...items.map(line));
   }
   return out.join('\n');
+}
+
+/** Point `github:c3d-gg/melvor-script#vX.Y.Z` and `melvor-script-vX.Y.Z.zip` mentions at `version`. */
+export function pointReadmeAt(readme: string, version: string): string {
+  return readme
+    .replace(/(github:c3d-gg\/melvor-script#v)\d+\.\d+\.\d+/g, `$1${version}`)
+    .replace(/(melvor-script-v)\d+\.\d+\.\d+(\.zip)/g, `$1${version}$2`)
+    .replace(/(releases\/download\/v)\d+\.\d+\.\d+(\/melvor-script-v)\d+\.\d+\.\d+/g, `$1${version}$2${version}`);
 }
 
 const CHANGELOG_HEADER = `# Changelog
@@ -174,6 +183,8 @@ async function main() {
   // Files first, so the checks and the zip see the new version.
   writeFileSync(PKG, readFileSync(PKG, 'utf8').replace(/"version":\s*"[^"]+"/, `"version": "${next}"`));
   writeFileSync(CHANGELOG, withEntry(existsSync(CHANGELOG) ? readFileSync(CHANGELOG, 'utf8') : null, notes));
+  // Keep the README's install instructions pointing at the release being cut.
+  writeFileSync(README, pointReadmeAt(readFileSync(README, 'utf8'), next));
   try {
     await $`bun fmt CHANGELOG.md`.quiet();
     await $`bun run typecheck`;
@@ -181,11 +192,11 @@ async function main() {
     await $`bun fmt --check`;
     await $`bun run pack`;
   } catch (e) {
-    await $`git checkout -- package.json`.quiet().nothrow();
+    await $`git checkout -- package.json README.md`.quiet().nothrow();
     if (await out($`git ls-files CHANGELOG.md`)) await $`git checkout -- CHANGELOG.md`.quiet().nothrow();
     else await $`git clean -fq -- CHANGELOG.md`.quiet().nothrow();
     fail(
-      `Checks failed, release aborted (package.json and CHANGELOG.md restored).\n${e instanceof Error ? e.message : e}`,
+      `Checks failed, release aborted (package.json, README.md and CHANGELOG.md restored).\n${e instanceof Error ? e.message : e}`,
     );
   }
 
@@ -194,7 +205,7 @@ async function main() {
   const notesFile = join(ROOT, 'dist', 'release-notes.md');
   writeFileSync(notesFile, notes.split('\n').slice(1).join('\n').trim() + '\n');
 
-  await $`git add package.json CHANGELOG.md`;
+  await $`git add package.json CHANGELOG.md README.md`;
   await $`git commit -q -m ${`chore(release): v${next}`}`;
   await $`git tag -a ${`v${next}`} -m ${`v${next}`}`;
   await $`git push -q origin main`;
