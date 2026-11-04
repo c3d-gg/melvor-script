@@ -23,7 +23,8 @@
     "format": "bun fmt",
     "format:check": "bun fmt --check",
     "test": "bun test",
-    "melvor": "bun src/cli/main.ts"
+    "melvor": "bun src/cli/main.ts",
+    "release": "bun tools/release.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.4.4",

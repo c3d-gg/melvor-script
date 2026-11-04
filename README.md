@@ -139,7 +139,21 @@ src/shared/     protocol types + generated ids
 examples/       demo scripts
 scripts/        your own scripts (gitignored)
 test/           end-to-end tests against a fake game
+tools/          build, id generation, release
 ```
+
+### Versioning and releases
+
+The version lives in one place, `package.json`; the runtime reads it from there. Commit messages follow [Conventional Commits](https://www.conventionalcommits.org):
+
+| Commit                                                             | Release                                                     |
+| ------------------------------------------------------------------ | ----------------------------------------------------------- |
+| `feat: …`                                                          | minor (0.3.0 → 0.4.0)                                       |
+| `fix: …`, `perf: …`, or a message without a type                   | patch (0.3.0 → 0.3.1)                                       |
+| `feat!: …` or a `BREAKING CHANGE:` line                            | major; a minor bump while the version is 0.x                |
+| `refactor:`, `docs:`, `chore:`, `test:`, `ci:`, `build:`, `style:` | no release on their own (refactors still show in the notes) |
+
+`bun run release --dry-run` previews the next version and its notes. `bun run release` then writes `package.json` and [CHANGELOG.md](CHANGELOG.md), runs typecheck, tests and the format check, packs the mod, commits `chore(release): vX.Y.Z`, tags and pushes it, and publishes a GitHub release with `melvor-script-vX.Y.Z.zip` attached. Pass `major`, `minor`, `patch` or an exact version to override the bump.
 
 ## Security
 
