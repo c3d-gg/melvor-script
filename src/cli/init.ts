@@ -101,8 +101,8 @@ export function init(target: string, packageRoot: string): void {
 
   console.log(`
 Next:
-  1. Install the mod in Melvor Idle (Steam): download melvor-script-v${version}.zip from
-     ${REPO}/releases, then in the game: Creator Toolkit → Local Mods → Add Mod → Modfile.
+  1. Install the mod in Melvor Idle (Steam): Mod Manager → Browse → search "Melvor Script" →
+     Subscribe, then restart the game (or https://mod.io/g/melvoridle/m/melvor-script).
   2. Load a character, or create one in Scripted Mode.
   3. bun scripts/hello.ts   (or open it in VS Code and press F5)
 

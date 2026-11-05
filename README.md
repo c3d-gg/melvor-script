@@ -72,9 +72,8 @@ On a normal character, each scripted action takes the skill's normal interval. A
 ## Setup
 
 1. Install [Bun](https://bun.com). Scripts run on Bun, so they can use Bun APIs too (`Bun.file`, `Bun.$`, `bun:sqlite`, ...).
-2. **Get Creator Toolkit**, the official mod for loading mods from a file. In Melvor, open the **Mod Manager** (button on the character-select screen, or sidebar _Modding → Mod Manager_) → **Browse** → search `Creator Toolkit` → **Subscribe**, then restart the game.
-3. **Install this mod.** Download [melvor-script-v0.5.0.zip](https://github.com/c3d-gg/melvor-script/releases/download/v0.5.0/melvor-script-v0.5.0.zip) from the [latest release](https://github.com/c3d-gg/melvor-script/releases/latest). In the game, open Creator Toolkit (sidebar _Modding → Creator Toolkit_, or the orange ✱ button next to the Mod Manager button) → **Local Mods** → **Add Mod**: name it `Melvor Script`, choose **Modfile**, pick the zip, **Save**, and restart the game.
-4. **Make a folder for your scripts:**
+2. **Install the mod from mod.io.** In Melvor, open the **Mod Manager** (button on the character-select screen, or sidebar _Modding → Mod Manager_) → **Browse** → search `Melvor Script` → **Subscribe**, then restart the game. Or subscribe on the website: [mod.io/g/melvoridle/m/melvor-script](https://mod.io/g/melvoridle/m/melvor-script).
+3. **Make a folder for your scripts:**
 
    ```sh
    mkdir my-melvor-scripts && cd my-melvor-scripts
@@ -85,19 +84,22 @@ On a normal character, each scripted action takes the skill's normal interval. A
 
    `melvor init` adds `scripts/hello.ts`, a `tsconfig.json` if you don't have one, and VS Code's F5 setup. It never overwrites a file.
 
-5. Load a character, or create one in **Scripted Mode**. A **Melvor Script** panel appears (bottom right; the _Modding → Melvor Script_ sidebar entry toggles it). On first load the game writes `~/.melvor-scripting/config.json` with a random token, which your scripts read to connect.
-6. `bun scripts/hello.ts`, or open it in VS Code and press **F5** (with the Bun extension, `oven.bun-vscode`).
+4. Load a character, or create one in **Scripted Mode**. A **Melvor Script** panel appears (bottom right; the _Modding → Melvor Script_ sidebar entry toggles it). On first load the game writes `~/.melvor-scripting/config.json` with a random token, which your scripts read to connect.
+5. `bun scripts/hello.ts`, or open it in VS Code and press **F5** (with the Bun extension, `oven.bun-vscode`).
 
-**Updating:** download the new zip and replace the mod in Creator Toolkit, then `bun add github:c3d-gg/melvor-script#vX.Y.Z` with the same version. If the two ever disagree on the protocol, the connection says which side to update.
+**Updating:** mod.io updates the mod for you (restart the game). Then `bun add github:c3d-gg/melvor-script#vX.Y.Z` with the same version; `bunx melvor status` shows the version the game is running. If the two ever disagree on the protocol, the connection says which side to update.
+
+**Without mod.io:** every [release](https://github.com/c3d-gg/melvor-script/releases/latest) also has the mod as a zip ([melvor-script-v0.5.0.zip](https://github.com/c3d-gg/melvor-script/releases/download/v0.5.0/melvor-script-v0.5.0.zip)). Load it with the official Creator Toolkit mod: _Modding → Creator Toolkit_ → **Local Mods** → **Add Mod** → **Modfile**, pick the zip, **Save**, and restart.
 
 ## Settings
 
 In the game: sidebar **Mod Settings → Melvor Script**. The values are kept in `~/.melvor-scripting/config.json` and shared by all your characters. (Melvor saves mod settings per character, and only for mods installed from mod.io, so the file is the real store.)
 
-| Setting    | Default |                                                                                                                          |
-| ---------- | ------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Speed      | 10      | Scripted Mode cooldown = normal action time ÷ speed                                                                      |
-| Allow eval | off     | Lets connected clients run any JavaScript in the game (`m.eval`, `bun run melvor eval`, the REPL). Scripts don't need it |
+| Setting       | Default |                                                                                                                          |
+| ------------- | ------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Speed         | 10      | Scripted Mode cooldown = normal action time ÷ speed                                                                      |
+| Farming speed | 10      | Scripted Mode crops grow in their normal time ÷ farming speed (applies to crops planted after a change)                  |
+| Allow eval    | off     | Lets connected clients run any JavaScript in the game (`m.eval`, `bun run melvor eval`, the REPL). Scripts don't need it |
 
 ## Writing scripts
 
