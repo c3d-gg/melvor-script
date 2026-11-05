@@ -1,12 +1,21 @@
-import type { FightResult, JobInfo } from '../../shared/protocol.ts';
+import type { FightResult, JobInfo, JobStatus } from '../../shared/protocol.ts';
 import { RpcError, isInstance, safe, type GameObject, type RuntimeEnv } from '../env.ts';
 import { allObjects, idOf, resolveIn } from '../lookup.ts';
 import type { ClientSession } from '../rpc-server.ts';
 import type { ApiContext } from './context.ts';
 
+/**
+ * Checked after every kill: return null to keep fighting, or how the fight ends.
+ * Used by slayer fights, which end with the task rather than after a fixed number of kills.
+ */
+export type FightUntil = () => { status: JobStatus; reason?: string } | null;
+
 interface FightJob {
   id: number;
   target: number | null;
+  until: FightUntil | null;
+  /** Shown as the job's target when `target` is null (slayer: kills left when it started). */
+  expected: number | null;
   kills: number;
   startedAt: number;
   ownerId: number | null;
@@ -42,7 +51,10 @@ export class CombatController {
       const job = this.job;
       if (!job) return;
       job.kills++;
-      if (job.target !== null && job.kills >= job.target && !job.stopScheduled) {
+      if (job.stopScheduled) return;
+      const end =
+        job.target !== null && job.kills >= job.target ? { status: 'completed' as const } : (job.until?.() ?? null);
+      if (end) {
         // 'monsterKilled' fires inside CombatManager.onEnemyDeath(), before the game decides what
         // happens next. Stopping right here would cut that flow in half, so stop after this tick.
         // stop() also collects the loot container, which still counts towards this job.
@@ -51,7 +63,7 @@ export class CombatController {
           this.deferred = null;
           if (this.job !== job) return;
           this.stopCombat();
-          this.finish('completed');
+          this.finish(end.status, end.reason);
         }, 0);
       }
     };
@@ -107,10 +119,11 @@ export class CombatController {
   fight(
     params: { monster: string; area?: string; kills?: number | null },
     session: ClientSession | null,
+    until: { check: FightUntil; expected: number | null } | null = null,
   ): Promise<FightResult> | FightResult {
     this.finish('cancelled', 'superseded by a new fight');
-    this.selectMonster(params, false);
-    return this.startJob(params.kills ?? null, session);
+    this.selectMonster(params, until !== null);
+    return this.startJob(params.kills ?? null, session, until);
   }
 
   dungeon(
@@ -213,9 +226,13 @@ export class CombatController {
     }
   }
 
-  private startJob(target: number | null, session: ClientSession | null): Promise<FightResult> | FightResult {
+  private startJob(
+    target: number | null,
+    session: ClientSession | null,
+    until: { check: FightUntil; expected: number | null } | null = null,
+  ): Promise<FightResult> | FightResult {
     const startedAt = Date.now();
-    if (target === null) return { kills: 0, status: 'completed', durationMs: 0, items: {}, xp: {} };
+    if (target === null && !until) return { kills: 0, status: 'completed', durationMs: 0, items: {}, xp: {} };
     const xpBefore = new Map<GameObject, number>();
     for (const s of allObjects(this.game.skills)) xpBefore.set(s, s.xp ?? 0);
     this.jobOwner = session?.name ?? 'game';
@@ -223,6 +240,8 @@ export class CombatController {
       this.job = {
         id: this.nextJobId++,
         target,
+        until: until?.check ?? null,
+        expected: until?.expected ?? null,
         kills: 0,
         startedAt,
         ownerId: session?.id ?? null,
@@ -244,7 +263,7 @@ export class CombatController {
         jobId: -job.id,
         skill: 'combat',
         targets: safe(() => [this.game.combat.selectedMonster.id as string], []),
-        requested: job.target,
+        requested: job.target ?? job.expected,
         completed: job.kills,
         startedAt: job.startedAt,
         owner: this.jobOwner,

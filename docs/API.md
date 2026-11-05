@@ -3,12 +3,12 @@
 Everything a script can do. `m` is the object your `run` callback gets (or that `await connect()` returns).
 
 - **Reads are synchronous.** `m.state` mirrors the game: it's pushed several times a second and refreshed before every call returns. `m.bank.count(...)`, `m.skills.woodcutting.level` and friends read from it.
-- **Actions are async and paced.** Skill actions and combat (`attack`, `fight`, `dungeon`) resolve when you may act again. Calling one while `!m.ready` rejects at once with `COOLDOWN` or `BUSY`. Everything else (bank, shop, eating, equipment, farming, mastery spending, data lookups) is free.
+- **Actions are async and paced.** Skill actions and combat (`attack`, `fight`, `dungeon`) resolve when you may act again. Calling one while `!m.ready` rejects at once with `COOLDOWN` or `BUSY`. Everything else (bank, shop, eating, potions, equipment, spells, slayer tasks, farming, mastery spending, data lookups) is free.
 - **Ids are typed.** `Items.Oak_Logs`, `Trees.Oak`, `Monsters.Chicken` ... a typo fails at compile time. See [Ids](#ids).
 
 This page is generated from the source by `bun run docs`. The descriptions are the doc comments VS Code shows on hover.
 
-**Contents:** [Starting a script](#starting-a-script) · [m](#m) · [m.skills](#mskills) · [m.bank](#mbank) · [m.player](#mplayer) · [m.combat](#mcombat) · [m.shop](#mshop) · [m.data](#mdata) · [Options and results](#options-and-results) · [m.state](#mstate) · [Events](#events) · [Errors](#errors) · [Ids](#ids)
+**Contents:** [Starting a script](#starting-a-script) · [m](#m) · [m.skills](#mskills) · [m.bank](#mbank) · [m.player](#mplayer) · [m.combat](#mcombat) · [m.combat.slayer](#mcombatslayer) · [m.potions](#mpotions) · [m.shop](#mshop) · [m.data](#mdata) · [Options and results](#options-and-results) · [m.state](#mstate) · [Events](#events) · [Errors](#errors) · [Ids](#ids)
 
 ## Starting a script
 
@@ -30,7 +30,7 @@ This page is generated from the source by `bun run docs`. The descriptions are t
 
 ## m
 
-Sub-APIs: [`m.skills`](#mskills), [`m.bank`](#mbank), [`m.player`](#mplayer), [`m.combat`](#mcombat), [`m.shop`](#mshop), [`m.data`](#mdata).
+Sub-APIs: [`m.skills`](#mskills), [`m.bank`](#mbank), [`m.player`](#mplayer), [`m.combat`](#mcombat), [`m.potions`](#mpotions), [`m.shop`](#mshop), [`m.data`](#mdata).
 
 **Properties** (synchronous, from the live state)
 
@@ -284,6 +284,8 @@ On every skill with actions, and on `m.skills.farming` (`T` is `CropId` there).
   Equipped items by slot id. Empty slots are left out.
 - **`activePrayers: PrayerId[]`**
   Prayers that are on.
+- **`spells: SpellSelection`**
+  The selected combat spells. The attack spell is what you cast when attacking with magic.
 
 **Methods**
 
@@ -307,11 +309,21 @@ On every skill with actions, and on `m.skills.farming` (`T` is `CropId` there).
   Turn a prayer on or off.
 - **`setAttackStyle(style: AttackStyleId): Promise<{ style: string; }>`**
   Choose an attack style (see `AttackStyles`).
+- **`setSpells(spells: { attack?: AttackSpellId; curse?: CurseSpellId | null; aurora?: AuroraSpellId | null }): Promise<SpellSelection>`**
+  Choose combat spells (see `AttackSpells`, `Curses`, `Auroras`). Leave a key out to keep it;
+  `null` removes the curse or aurora. Curses and auroras need magic attacks, and a spellbook
+  that allows them. Free: no cooldown.
+
+  ```ts
+  await m.player.setSpells({ attack: AttackSpells.FireBolt, curse: Curses.WeakeningI });
+  ```
 
 ## m.combat
 
 **Properties** (synchronous, from the live state)
 
+- **`slayer: Slayer`**
+  Slayer tasks: get one, extend it, fight it.
 - **`active: boolean`**
   You're in combat.
 - **`area: CombatAreaId | null`**
@@ -322,8 +334,8 @@ On every skill with actions, and on `m.skills.farming` (`T` is `CropId` there).
   The enemy's hitpoints.
 - **`enemyMaxHp: number`**
   The enemy's maximum hitpoints.
-- **`slayerTask: { monster: MonsterId; killsLeft: number; } | null`**
-  Your slayer task, or null.
+- **`slayerTask: SlayerTask | null`**
+  Your slayer task, or null. Same as `m.combat.slayer.task`.
 - **`fighting: boolean`**
   An enemy is alive and can be attacked.
 - **`spawning: boolean`**
@@ -350,6 +362,58 @@ On every skill with actions, and on `m.skills.farming` (`T` is `CropId` there).
 - **`stop(): Promise<{ stopped: boolean; }>`**
   Leave combat.
 
+## m.combat.slayer
+
+**Properties** (synchronous, from the live state)
+
+- **`task: SlayerTask | null`**
+  Your slayer task, or null. After a task is done it's null for about a second, while the game picks the next.
+
+**Methods**
+
+- **`categories(): Promise<SlayerCategoryInfo[]>`**
+  Every task tier: level, costs, completions, and whether you can pick it.
+- **`newTask(category: SlayerCategoryId): Promise<SlayerTask>`**
+  Get a new task in a tier (see `SlayerCategories`), paying its cost (Easy is free).
+  It replaces the task you have. Resolves with the task once the game has picked it (about a second).
+  When a task is done the game picks the next one in the same tier for free; calling this
+  during that second takes that one instead of paying for another.
+- **`ensureTask(category: SlayerCategoryId): Promise<SlayerTask>`**
+  Your task if you have one (or the one the game is picking), otherwise a new one in `category`.
+- **`extend(): Promise<SlayerTask>`**
+  Extend your task for more kills (once per task; costs Slayer Coins).
+- **`fight(opts: { allowStop?: boolean } = {}): Promise<FightResult>`**
+  Fight your task's monster until the task is done. Like `m.combat.fight` with `kills`: in instant
+  mode it attacks for you, and it leaves combat afterwards. Rejects with `FightStoppedError` if
+  the fight ends early (you died or fled, or the task changed), unless `allowStop`.
+
+  ```ts
+  await m.combat.slayer.ensureTask(SlayerCategories.Easy);
+  await m.combat.slayer.fight();
+  ```
+
+## m.potions
+
+**Properties** (synchronous, from the live state)
+
+- **`active: Partial<Record<PotionAction, ActivePotion>>`**
+  Potions in use, keyed by what they work for ('melvorD:Combat' or a skill id).
+
+**Methods**
+
+- **`activeFor(action: PotionAction): ActivePotion | null`**
+  The potion in use for combat or a skill, or null.
+- **`autoReuse(action: PotionAction): boolean`**
+  True when that action's potion is refilled from the bank as its charges run out.
+- **`use(potion: PotionId): Promise<{ action: PotionAction; item: PotionId; charges: number; }>`**
+  Drink a potion from the bank. It works for its action (combat, or one skill) until its charges
+  run out. The same potion again tops its charges back up; another one for the same action
+  replaces it. Free: no cooldown.
+- **`remove(action: PotionAction): Promise<{ removed: boolean; }>`**
+  Stop using the potion for combat or a skill (its charges are lost).
+- **`setAutoReuse(action: PotionAction, enabled = true): Promise<{ enabled: boolean; }>`**
+  Refill that action's potion from the bank as it runs out (the game's "auto re-use" box).
+
 ## m.shop
 
 **Methods**
@@ -371,6 +435,8 @@ On every skill with actions, and on `m.skills.farming` (`T` is `CropId` there).
   Every monster. Cached.
 - **`areas(): Promise<AreaInfo[]>`**
   Every combat area, slayer area and dungeon. Cached.
+- **`spells(): Promise<SpellInfo[]>`**
+  Combat spells (attack spells, curses, auroras), with levels, runes and whether you can use them.
 
 ## Options and results
 
@@ -454,15 +520,16 @@ One combat click (instant mode): you act, then the enemy acts.
 
 ### `ItemInfo`
 
-| Field         | Type                                     |     |
-| ------------- | ---------------------------------------- | --- |
-| `id`          | `string`                                 |     |
-| `name`        | `string`                                 |     |
-| `type`        | `string`                                 |     |
-| `category`    | `string`                                 |     |
-| `sellsFor`    | `{ currency: string; quantity: number }` |     |
-| `healsFor?`   | `number`                                 |     |
-| `validSlots?` | `string[]`                               |     |
+| Field         | Type                                                |                                                                                                    |
+| ------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `id`          | `string`                                            |                                                                                                    |
+| `name`        | `string`                                            |                                                                                                    |
+| `type`        | `string`                                            |                                                                                                    |
+| `category`    | `string`                                            |                                                                                                    |
+| `sellsFor`    | `{ currency: string; quantity: number }`            |                                                                                                    |
+| `healsFor?`   | `number`                                            |                                                                                                    |
+| `validSlots?` | `string[]`                                          |                                                                                                    |
+| `potion?`     | `{ action: string; charges: number; tier: number }` | Potions: the action it works for ('melvorD:Combat' or a skill), charges per potion and tier (0-3). |
 
 ### `ActionInfo`
 
@@ -512,6 +579,35 @@ One combat click (instant mode): you act, then the enemy acts.
 | `owned`    | `number`                                                |     |
 | `buyLimit` | `number`                                                |     |
 | `unlocked` | `boolean`                                               |     |
+
+### `SlayerCategoryInfo`
+
+| Field            | Type                                           |                                                                                       |
+| ---------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `id`             | `string`                                       | e.g. 'melvorF:Easy'.                                                                  |
+| `name`           | `string`                                       |                                                                                       |
+| `level`          | `number`                                       | Slayer level needed.                                                                  |
+| `abyssalLevel`   | `number`                                       |                                                                                       |
+| `unlocked`       | `boolean`                                      | You have the level for it.                                                            |
+| `rollCost`       | `QuantityInfo[]`                               | What a new task costs (empty when free), with your cost bonuses.                      |
+| `extensionCost`  | `QuantityInfo[]`                               | What extending a task costs.                                                          |
+| `tasksCompleted` | `number`                                       | Tasks of this tier completed.                                                         |
+| `combatLevels`   | `{ min: number; max: number \| null } \| null` | Monster combat levels it picks from (null for Abyss tiers, which pick from one area). |
+
+### `SpellInfo`
+
+| Field          | Type                              |                                                                          |
+| -------------- | --------------------------------- | ------------------------------------------------------------------------ |
+| `id`           | `string`                          |                                                                          |
+| `name`         | `string`                          |                                                                          |
+| `kind`         | `'attack' \| 'curse' \| 'aurora'` | 'attack' spells hit; a 'curse' weakens the enemy; an 'aurora' buffs you. |
+| `spellbook`    | `string \| null`                  | Attack spells: the spellbook ('melvorD:Standard', 'melvorF:Ancient'...). |
+| `level`        | `number`                          | Magic level needed.                                                      |
+| `abyssalLevel` | `number`                          |                                                                          |
+| `maxHit?`      | `number`                          | Attack spells: base max hit.                                             |
+| `runes`        | `QuantityInfo[]`                  | Runes used per cast.                                                     |
+| `requiredItem` | `string \| null`                  | An item that must be equipped to use it, or null.                        |
+| `unlocked`     | `boolean`                         | You can select it now (level, requirements and required item).           |
 
 ### `FarmingPlotInfo`
 
@@ -575,6 +671,7 @@ The live mirror behind every synchronous read. Most scripts use the getters abov
 | `player`     | `PlayerState`                   |                                                        |
 | `action`     | `ActionState`                   |                                                        |
 | `combat`     | `CombatState`                   |                                                        |
+| `potions?`   | `PotionsState`                  | Potions in use. Missing with a mod older than 0.7.0.   |
 
 ### `MetaState`
 
@@ -605,18 +702,27 @@ The live mirror behind every synchronous read. Most scripts use the getters abov
 
 ### `PlayerState`
 
-| Field              | Type                                           |                                                    |
-| ------------------ | ---------------------------------------------- | -------------------------------------------------- |
-| `hp`               | `number`                                       |                                                    |
-| `maxHp`            | `number`                                       |                                                    |
-| `prayerPoints`     | `number`                                       |                                                    |
-| `combatLevel`      | `number`                                       |                                                    |
-| `attackType`       | `string`                                       |                                                    |
-| `autoEatThreshold` | `number`                                       |                                                    |
-| `food`             | `{ selected: number; slots: FoodSlotState[] }` |                                                    |
-| `equipmentSet`     | `number`                                       |                                                    |
-| `equipment`        | `Record<string, EquippedState>`                | slot id -> equipped item. Empty slots are omitted. |
-| `activePrayers`    | `string[]`                                     |                                                    |
+| Field              | Type                                           |                                                                                                                |
+| ------------------ | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `hp`               | `number`                                       |                                                                                                                |
+| `maxHp`            | `number`                                       |                                                                                                                |
+| `prayerPoints`     | `number`                                       |                                                                                                                |
+| `combatLevel`      | `number`                                       |                                                                                                                |
+| `attackType`       | `string`                                       |                                                                                                                |
+| `autoEatThreshold` | `number`                                       |                                                                                                                |
+| `food`             | `{ selected: number; slots: FoodSlotState[] }` |                                                                                                                |
+| `equipmentSet`     | `number`                                       |                                                                                                                |
+| `equipment`        | `Record<string, EquippedState>`                | slot id -> equipped item. Empty slots are omitted.                                                             |
+| `activePrayers`    | `string[]`                                     |                                                                                                                |
+| `spells?`          | `SpellSelectionState`                          | The selected combat spells (of the current equipment set). The attack spell is used when attacking with magic. |
+
+### `SpellSelectionState`
+
+| Field    | Type             |     |
+| -------- | ---------------- | --- |
+| `attack` | `string \| null` |     |
+| `curse`  | `string \| null` |     |
+| `aurora` | `string \| null` |     |
 
 ### `ActionState`
 
@@ -643,34 +749,51 @@ The live mirror behind every synchronous read. Most scripts use the getters abov
 
 ### `CombatState`
 
-| Field        | Type                                             |                                                                   |
-| ------------ | ------------------------------------------------ | ----------------------------------------------------------------- |
-| `active`     | `boolean`                                        |                                                                   |
-| `area`       | `string \| null`                                 |                                                                   |
-| `monster`    | `string \| null`                                 |                                                                   |
-| `enemyHp`    | `number`                                         |                                                                   |
-| `enemyMaxHp` | `number`                                         |                                                                   |
-| `fighting`   | `boolean`                                        | An enemy is alive and can be attacked.                            |
-| `spawning`   | `boolean`                                        | Waiting for the next enemy to spawn.                              |
-| `loot`       | `Record<string, number>`                         | Items waiting in the loot container (collect with `combat.loot`). |
-| `slayerTask` | `{ monster: string; killsLeft: number } \| null` |                                                                   |
+| Field        | Type                      |                                                                                        |
+| ------------ | ------------------------- | -------------------------------------------------------------------------------------- |
+| `active`     | `boolean`                 |                                                                                        |
+| `area`       | `string \| null`          |                                                                                        |
+| `monster`    | `string \| null`          |                                                                                        |
+| `enemyHp`    | `number`                  |                                                                                        |
+| `enemyMaxHp` | `number`                  |                                                                                        |
+| `fighting`   | `boolean`                 | An enemy is alive and can be attacked.                                                 |
+| `spawning`   | `boolean`                 | Waiting for the next enemy to spawn.                                                   |
+| `loot`       | `Record<string, number>`  | Items waiting in the loot container (collect with `combat.loot`).                      |
+| `slayerTask` | `SlayerTaskState \| null` | Your slayer task, or null (also null for the second the game takes to pick a new one). |
+
+### `SlayerTaskState`
+
+| Field       | Type      |                                        |
+| ----------- | --------- | -------------------------------------- |
+| `monster`   | `string`  | The monster to kill.                   |
+| `killsLeft` | `number`  | Kills still needed.                    |
+| `category`  | `string`  | The task's tier, e.g. 'melvorF:Easy'.  |
+| `extended`  | `boolean` | The task was extended (once per task). |
+
+### `PotionsState`
+
+| Field       | Type                                |                                                                                      |
+| ----------- | ----------------------------------- | ------------------------------------------------------------------------------------ |
+| `active`    | `Record<string, ActivePotionState>` | action id ('melvorD:Combat', 'melvorD:Woodcutting'...) -> the potion working for it. |
+| `autoReuse` | `string[]`                          | Actions whose potion is replaced from the bank when its charges run out.             |
 
 ## Events
 
 Subscribe with `m.on(type, handler)` (returns an unsubscribe function) or wait for one with `await m.once(type)`.
 
-| Type               | Fields                                                                  |
-| ------------------ | ----------------------------------------------------------------------- |
-| `levelUp`          | `{ skill: string; oldLevel: number; newLevel: number }`                 |
-| `masteryLevelUp`   | `{ skill: string; action: string; oldLevel: number; newLevel: number }` |
-| `monsterKilled`    | `{ monster: string }`                                                   |
-| `dungeonCompleted` | `{ dungeon: string }`                                                   |
-| `cropsGrown`       | `{ grown: string[]; died: string[] }`                                   |
-| `jobStarted`       | `{ job: JobInfo }`                                                      |
-| `jobFinished`      | `{ result: ActionResult }`                                              |
-| `scriptMode`       | `{ enabled: boolean }`                                                  |
-| `stopAll`          | `{ reason: string }`                                                    |
-| `log`              | `{ level: LogLevel; message: string; source: string }`                  |
+| Type                  | Fields                                                                  |
+| --------------------- | ----------------------------------------------------------------------- |
+| `levelUp`             | `{ skill: string; oldLevel: number; newLevel: number }`                 |
+| `masteryLevelUp`      | `{ skill: string; action: string; oldLevel: number; newLevel: number }` |
+| `monsterKilled`       | `{ monster: string }`                                                   |
+| `dungeonCompleted`    | `{ dungeon: string }`                                                   |
+| `slayerTaskCompleted` | `{ category: string; monster: string }`                                 |
+| `cropsGrown`          | `{ grown: string[]; died: string[] }`                                   |
+| `jobStarted`          | `{ job: JobInfo }`                                                      |
+| `jobFinished`         | `{ result: ActionResult }`                                              |
+| `scriptMode`          | `{ enabled: boolean }`                                                  |
+| `stopAll`             | `{ reason: string }`                                                    |
+| `log`                 | `{ level: LogLevel; message: string; source: string }`                  |
 
 ## Errors
 
@@ -716,6 +839,11 @@ Const maps of every id in the game, from `import { Items, Trees, ... } from 'mel
 | `Prayers`             | 87   | `Prayers.Thick_Skin`                    | Prayers.                                                        |
 | `AttackStyles`        | 8    | `AttackStyles.Stab`                     | Attack styles.                                                  |
 | `EquipmentSlots`      | 19   | `EquipmentSlots.Helmet`                 | Equipment slots.                                                |
+| `AttackSpells`        | 69   | `AttackSpells.WindStrike`               | Combat attack spells.                                           |
+| `Curses`              | 19   | `Curses.BlindingI`                      | Curses (combat spells).                                         |
+| `Auroras`             | 18   | `Auroras.SurgeI`                        | Auroras (combat spells).                                        |
+| `Potions`             | 290  | `Potions.Melee_Accuracy_Potion_I`       | Potions: each works for one action.                             |
+| `SlayerCategories`    | 14   | `SlayerCategories.Easy`                 | Slayer task tiers (Easy, Normal, Hard...).                      |
 | `Trees`               | 34   | `Trees.Normal`                          | Woodcutting trees.                                              |
 | `Fish`                | 59   | `Fish.Raw_Shrimp`                       | Fishing: fish.                                                  |
 | `Rocks`               | 40   | `Rocks.Rune_Essence`                    | Mining rocks.                                                   |

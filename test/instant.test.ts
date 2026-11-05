@@ -22,6 +22,8 @@ import {
   type FarmingPlotId,
   type ItemId,
   type Melvor,
+  type PotionId,
+  type SlayerCategoryId,
 } from '../src/client/index.ts';
 import { Action, FakeGame, PLOT, fakeClasses } from './fake-game.ts';
 
@@ -605,5 +607,72 @@ describe('farming', () => {
     const m = await client();
     await m.skills.farming.plant(P2, POTATOES);
     assert.equal(p2.state, PLOT.Growing);
+  });
+});
+
+describe('slayer and potions (instant)', () => {
+  const code = (c: string, re?: RegExp) => (e: MelvorError) => e.code === c && (!re || re.test(e.message));
+
+  it('slayer fight() attacks until the task is done, then leaves combat', async () => {
+    const m = await client();
+    await m.combat.slayer.newTask('test:Easy' as SlayerCategoryId);
+    const fight = m.combat.slayer.fight();
+    await until(() => m.state.action.jobs.length > 0);
+    assert.deepEqual(
+      [m.state.action.jobs[0]!.requested, m.state.action.jobs[0]!.targets],
+      [3, ['test:Chicken']],
+      'the job shows the kills the task needs',
+    );
+    const r = await fight;
+    assert.deepEqual([r.status, r.kills, r.attacks], ['completed', 3, 9]);
+    assert.equal(game.combat.isActive, false);
+    assert.equal(game.combat.slayerTask.category!.tasksCompleted, 1);
+  });
+
+  it('a slayer fight stops when the task changes', async () => {
+    const m = await client();
+    const other = await client('other');
+    await m.combat.slayer.newTask('test:Easy' as SlayerCategoryId);
+    const fight = m.combat.slayer.fight({ allowStop: true });
+    await until(() => game.combat.playerActs >= 1);
+    await other.combat.slayer.newTask('test:Easy' as SlayerCategoryId); // a reroll
+    const r = await fight;
+    assert.equal(r.status, 'stopped');
+    assert.match(r.reason ?? '', /task changed/);
+  });
+
+  it('potions: use, a charge per attack, auto re-use, remove', async () => {
+    const m = await client();
+    const COMBAT = 'melvorD:Combat' as const;
+    await assert.rejects(m.potions.use('test:Melee_Potion' as PotionId), code('MISSING_ITEMS'));
+    await assert.rejects(m.potions.use('test:Oak_Logs' as PotionId), code('BAD_REQUEST', /not a potion/));
+    game.bank.addItem(item('test:Melee_Potion'), 2);
+    assert.deepEqual(await m.potions.use('test:Melee_Potion' as PotionId), {
+      action: COMBAT,
+      item: 'test:Melee_Potion',
+      charges: 2,
+    });
+    assert.deepEqual(m.potions.activeFor(COMBAT), { item: 'test:Melee_Potion', charges: 2 });
+    assert.equal(m.ready, true, 'no cooldown');
+    assert.deepEqual(await m.potions.setAutoReuse(COMBAT), { enabled: true });
+    assert.equal(m.potions.autoReuse(COMBAT), true);
+
+    await m.combat.start('test:Chicken' as never);
+    await m.combat.attack();
+    assert.equal(m.potions.activeFor(COMBAT)?.charges, 1);
+    await m.combat.attack(); // the last charge: refilled from the bank
+    assert.deepEqual(m.potions.activeFor(COMBAT), { item: 'test:Melee_Potion', charges: 2 });
+    assert.equal(game.bank.getQty(item('test:Melee_Potion')), 0);
+
+    assert.deepEqual(await m.potions.setAutoReuse(COMBAT, false), { enabled: false });
+    assert.deepEqual(m.potions.active, { [COMBAT]: { item: 'test:Melee_Potion', charges: 2 } });
+    assert.deepEqual(await m.potions.remove(COMBAT), { removed: true });
+    assert.equal(m.potions.activeFor(COMBAT), null);
+    assert.deepEqual(await m.potions.remove(COMBAT), { removed: false });
+    assert.deepEqual((await m.data.item('test:Bird_Nest_Potion' as ItemId)).potion, {
+      action: 'test:Woodcutting',
+      charges: 5,
+      tier: 0,
+    });
   });
 });

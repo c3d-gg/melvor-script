@@ -118,6 +118,28 @@ export interface PlayerState {
   /** slot id -> equipped item. Empty slots are omitted. */
   equipment: Record<string, EquippedState>;
   activePrayers: string[];
+  /** The selected combat spells (of the current equipment set). The attack spell is used when attacking with magic. */
+  spells?: SpellSelectionState;
+}
+
+export interface SpellSelectionState {
+  attack: string | null;
+  curse: string | null;
+  aurora: string | null;
+}
+
+export interface ActivePotionState {
+  /** The potion item. */
+  item: string;
+  /** Charges left. */
+  charges: number;
+}
+
+export interface PotionsState {
+  /** action id ('melvorD:Combat', 'melvorD:Woodcutting'...) -> the potion working for it. */
+  active: Record<string, ActivePotionState>;
+  /** Actions whose potion is replaced from the bank when its charges run out. */
+  autoReuse: string[];
 }
 
 export interface JobInfo {
@@ -156,7 +178,19 @@ export interface CombatState {
   spawning: boolean;
   /** Items waiting in the loot container (collect with `combat.loot`). */
   loot: Record<string, number>;
-  slayerTask: { monster: string; killsLeft: number } | null;
+  /** Your slayer task, or null (also null for the second the game takes to pick a new one). */
+  slayerTask: SlayerTaskState | null;
+}
+
+export interface SlayerTaskState {
+  /** The monster to kill. */
+  monster: string;
+  /** Kills still needed. */
+  killsLeft: number;
+  /** The task's tier, e.g. 'melvorF:Easy'. */
+  category: string;
+  /** The task was extended (once per task). */
+  extended: boolean;
 }
 
 export interface MetaState {
@@ -187,6 +221,8 @@ export interface GameState {
   player: PlayerState;
   action: ActionState;
   combat: CombatState;
+  /** Potions in use. Missing with a mod older than 0.7.0. */
+  potions?: PotionsState;
 }
 
 export type StateSection = keyof GameState;
@@ -278,6 +314,8 @@ export interface ItemInfo {
   sellsFor: { currency: string; quantity: number };
   healsFor?: number;
   validSlots?: string[];
+  /** Potions: the action it works for ('melvorD:Combat' or a skill), charges per potion and tier (0-3). */
+  potion?: { action: string; charges: number; tier: number };
 }
 
 export interface QuantityInfo {
@@ -325,6 +363,45 @@ export interface ShopPurchaseInfo {
   owned: number;
   buyLimit: number;
   unlocked: boolean;
+}
+
+export interface SpellInfo {
+  id: string;
+  name: string;
+  /** 'attack' spells hit; a 'curse' weakens the enemy; an 'aurora' buffs you. */
+  kind: 'attack' | 'curse' | 'aurora';
+  /** Attack spells: the spellbook ('melvorD:Standard', 'melvorF:Ancient'...). */
+  spellbook: string | null;
+  /** Magic level needed. */
+  level: number;
+  abyssalLevel: number;
+  /** Attack spells: base max hit. */
+  maxHit?: number;
+  /** Runes used per cast. */
+  runes: QuantityInfo[];
+  /** An item that must be equipped to use it, or null. */
+  requiredItem: string | null;
+  /** You can select it now (level, requirements and required item). */
+  unlocked: boolean;
+}
+
+export interface SlayerCategoryInfo {
+  /** e.g. 'melvorF:Easy'. */
+  id: string;
+  name: string;
+  /** Slayer level needed. */
+  level: number;
+  abyssalLevel: number;
+  /** You have the level for it. */
+  unlocked: boolean;
+  /** What a new task costs (empty when free), with your cost bonuses. */
+  rollCost: QuantityInfo[];
+  /** What extending a task costs. */
+  extensionCost: QuantityInfo[];
+  /** Tasks of this tier completed. */
+  tasksCompleted: number;
+  /** Monster combat levels it picks from (null for Abyss tiers, which pick from one area). */
+  combatLevels: { min: number; max: number | null } | null;
 }
 
 export interface CombatStatusResult {
@@ -427,6 +504,8 @@ export type GameEventMessage =
   | { type: 'masteryLevelUp'; skill: string; action: string; oldLevel: number; newLevel: number }
   | { type: 'monsterKilled'; monster: string }
   | { type: 'dungeonCompleted'; dungeon: string }
+  /** A slayer task was finished. The game picks the next one (same tier, free) a second later. */
+  | { type: 'slayerTaskCompleted'; category: string; monster: string }
   /** Farming plots finished growing: `grown` are ready to harvest, `died` need clearing (plot ids). */
   | { type: 'cropsGrown'; grown: string[]; died: string[] }
   | { type: 'jobStarted'; job: JobInfo }
@@ -474,6 +553,25 @@ export interface Methods {
   'combat.stop': [void, { stopped: boolean }];
   'combat.status': [void, CombatStatusResult];
 
+  /** Slayer task tiers. */
+  'slayer.categories': [void, SlayerCategoryInfo[]];
+  /**
+   * Get a new task in a tier (pays its roll cost). Resolves once the game has picked it (about a second).
+   * `keepCurrent`: keep an active task instead of rerolling it, and wait for one the game is already picking.
+   */
+  'slayer.newTask': [{ category: string; keepCurrent?: boolean }, SlayerTaskState];
+  /** Extend the active task (once per task). */
+  'slayer.extend': [void, SlayerTaskState];
+  /** Fight your task's monster until the task is done. */
+  'slayer.fight': [void, FightResult];
+
+  /** Drink a potion from the bank. It works for its action until its charges run out. */
+  'potions.use': [{ item: string }, { action: string; item: string; charges: number }];
+  /** Stop using the potion for an action (its charges are lost). */
+  'potions.remove': [{ action: string }, { removed: boolean }];
+  /** Refill an action's potion from the bank when its charges run out. */
+  'potions.setAutoReuse': [{ action: string; enabled: boolean }, { enabled: boolean }];
+
   'player.eat': [{ quantity?: number }, { hp: number }];
   'player.equipFood': [{ item: string; quantity: number }, { equipped: boolean }];
   'player.selectFood': [{ slot: number }, { selected: number }];
@@ -482,6 +580,8 @@ export interface Methods {
   'player.setEquipmentSet': [{ set: number }, { set: number }];
   'player.togglePrayer': [{ prayer: string }, { active: boolean }];
   'player.setAttackStyle': [{ style: string }, { style: string }];
+  /** Select combat spells. Leave a key out to keep it; null clears a curse or aurora. */
+  'player.setSpells': [{ attack?: string; curse?: string | null; aurora?: string | null }, SpellSelectionState];
 
   /** Mastery of the given actions (default: all of the skill's actions), keyed by action id. */
   'mastery.get': [{ skill: string; actions?: string[] }, Record<string, MasteryInfo>];
@@ -511,6 +611,8 @@ export interface Methods {
   'data.actions': [{ skill: string }, ActionInfo[]];
   'data.monsters': [void, MonsterInfo[]];
   'data.areas': [void, AreaInfo[]];
+  /** Combat spells: attack spells, curses and auroras. */
+  'data.spells': [void, SpellInfo[]];
   'data.registries': [void, Record<string, { id: string; name?: string }[]>];
 
   'debug.eval': [{ code: string; depth?: number }, unknown];

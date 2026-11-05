@@ -19,6 +19,8 @@ import { registerDebug } from './api/debug.ts';
 import { FarmingController, registerFarming } from './api/farming.ts';
 import { registerMastery } from './api/mastery.ts';
 import { registerPlayer } from './api/player.ts';
+import { registerPotions } from './api/potions.ts';
+import { registerSlayer } from './api/slayer.ts';
 import { ClickController } from './clicks.ts';
 import {
   configuredFarmingSpeed,
@@ -367,6 +369,17 @@ export function createRuntime(env: RuntimeEnv): Runtime {
     listen(game.combat, 'dungeonCompleted', (e) =>
       emit({ type: 'dungeonCompleted', dungeon: safe(() => e.dungeon.id, '') }),
     );
+    // Emitted before the game picks the next task, so .monster is still the finished task's.
+    listen(
+      safe(() => game.combat.slayerTask, undefined as GameObject),
+      'taskCompleted',
+      (e) =>
+        emit({
+          type: 'slayerTaskCompleted',
+          category: safe(() => e.category.id, ''),
+          monster: safe(() => game.combat.slayerTask.monster.id, ''),
+        }),
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -439,6 +452,8 @@ export function createRuntime(env: RuntimeEnv): Runtime {
   registerData(api);
   registerMastery(api);
   registerFarming(api);
+  registerSlayer(api);
+  registerPotions(api);
   registerDebug(api);
 
   // ---------------------------------------------------------------------------

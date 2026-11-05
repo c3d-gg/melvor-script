@@ -70,6 +70,7 @@ async function main() {
       const id = full(ns, it.id);
       push('items', { id, name: it.name });
       if (typeof it.healsFor === 'number') push('foods', { id, name: it.name });
+      if (it.itemType === 'Potion') push('potions', { id, name: it.name });
     }
     for (const m of [...(d.monsters ?? []), ...(d.itmMonsters ?? [])])
       if (m?.id) push('monsters', { id: full(ns, m.id), name: m.name });
@@ -87,6 +88,10 @@ async function main() {
     for (const p of d.prayers ?? []) push('prayers', { id: full(ns, p.id), name: p.name });
     for (const s of d.attackStyles ?? []) push('attackStyles', { id: full(ns, s.id), name: s.name });
     for (const s of d.equipmentSlots ?? []) push('equipmentSlots', { id: full(ns, s.id), name: s.emptyName ?? s.id });
+    for (const sp of d.attackSpells ?? []) push('attackSpells', { id: full(ns, sp.id), name: sp.name });
+    for (const sp of d.curseSpells ?? []) push('curseSpells', { id: full(ns, sp.id), name: sp.name });
+    for (const sp of d.auroraSpells ?? []) push('auroraSpells', { id: full(ns, sp.id), name: sp.name });
+    for (const c of d.slayerTaskCategories ?? []) push('slayerCategories', { id: full(ns, c.id), name: c.name });
 
     for (const block of d.skillData ?? []) {
       const skillId: string = block.skillID;

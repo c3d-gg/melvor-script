@@ -1,9 +1,11 @@
 /** Read-only game data: items, skill actions, monsters, areas, and id registries (for type generation). */
-import type { ActionInfo, AreaInfo, ItemInfo, MonsterInfo, QuantityInfo } from '../../shared/protocol.ts';
+import type { ActionInfo, AreaInfo, ItemInfo, MonsterInfo, QuantityInfo, SpellInfo } from '../../shared/protocol.ts';
 import { isInstance, safe, type GameObject, type RuntimeEnv } from '../env.ts';
 import { allObjects, idOf, resolveItem, resolveSkill } from '../lookup.ts';
 import { isActionUnlocked } from '../skills.ts';
 import type { ApiContext } from './context.ts';
+import { spellLockReason } from './player.ts';
+import { isPotion } from './potions.ts';
 
 export function itemInfo(item: GameObject): ItemInfo {
   const info: ItemInfo = {
@@ -18,6 +20,7 @@ export function itemInfo(item: GameObject): ItemInfo {
   };
   if (typeof item.healsFor === 'number') info.healsFor = item.healsFor;
   if (Array.isArray(item.validSlots)) info.validSlots = item.validSlots.map((s: GameObject) => s.id);
+  if (isPotion(item)) info.potion = { action: item.action.id, charges: item.charges, tier: safe(() => item.tier, 0) };
   return info;
 }
 
@@ -125,6 +128,32 @@ export function registerData(api: ApiContext) {
     }));
   });
 
+  rpc.register('data.spells', (): SpellInfo[] => {
+    const g = env.game;
+    const out: SpellInfo[] = [];
+    const add = (registry: GameObject, kind: SpellInfo['kind']) => {
+      for (const sp of allObjects(registry)) {
+        const info: SpellInfo = {
+          id: sp.id,
+          name: safe(() => String(sp.name), sp.localID),
+          kind,
+          spellbook: kind === 'attack' ? safe(() => idOf(sp.spellbook), null) : null,
+          level: safe(() => sp.level as number, 1),
+          abyssalLevel: safe(() => sp.abyssalLevel as number, 0),
+          runes: quantities(safe(() => sp.runesRequired, [])),
+          requiredItem: safe(() => idOf(sp.requiredItem), null),
+          unlocked: safe(() => spellLockReason(g, sp) === null, false),
+        };
+        if (kind === 'attack') info.maxHit = safe(() => sp.maxHit as number, 0);
+        out.push(info);
+      }
+    };
+    add(g.attackSpells, 'attack');
+    add(g.curseSpells, 'curse');
+    add(g.auroraSpells, 'aurora');
+    return out;
+  });
+
   rpc.register('data.registries', () => {
     const g = env.game;
     type Entry = { id: string; name?: string };
@@ -151,6 +180,11 @@ export function registerData(api: ApiContext) {
         .map(entry),
       farmingPlots: ids(safe(() => g.farming.plots, undefined)).map((e) => ({ id: e.id })),
       farmingCategories: ids(safe(() => g.farming.categories, undefined)),
+      attackSpells: ids(g.attackSpells),
+      curseSpells: ids(g.curseSpells),
+      auroraSpells: ids(g.auroraSpells),
+      slayerCategories: ids(safe(() => g.combat.slayerTask.categories, undefined)),
+      potions: allObjects(g.items).filter(isPotion).map(entry),
     };
     for (const skill of allObjects(g.skills)) {
       if (skill.actions) out[`actions:${skill.id}`] = ids(skill.actions);

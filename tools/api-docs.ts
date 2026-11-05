@@ -217,12 +217,12 @@ function build(): string {
 Everything a script can do. \`m\` is the object your \`run\` callback gets (or that \`await connect()\` returns).
 
 - **Reads are synchronous.** \`m.state\` mirrors the game: it's pushed several times a second and refreshed before every call returns. \`m.bank.count(...)\`, \`m.skills.woodcutting.level\` and friends read from it.
-- **Actions are async and paced.** Skill actions and combat (\`attack\`, \`fight\`, \`dungeon\`) resolve when you may act again. Calling one while \`!m.ready\` rejects at once with \`COOLDOWN\` or \`BUSY\`. Everything else (bank, shop, eating, equipment, farming, mastery spending, data lookups) is free.
+- **Actions are async and paced.** Skill actions and combat (\`attack\`, \`fight\`, \`dungeon\`) resolve when you may act again. Calling one while \`!m.ready\` rejects at once with \`COOLDOWN\` or \`BUSY\`. Everything else (bank, shop, eating, potions, equipment, spells, slayer tasks, farming, mastery spending, data lookups) is free.
 - **Ids are typed.** \`Items.Oak_Logs\`, \`Trees.Oak\`, \`Monsters.Chicken\` ... a typo fails at compile time. See [Ids](#ids).
 
 This page is generated from the source by \`bun run docs\`. The descriptions are the doc comments VS Code shows on hover.
 
-**Contents:** [Starting a script](#starting-a-script) · [m](#m) · [m.skills](#mskills) · [m.bank](#mbank) · [m.player](#mplayer) · [m.combat](#mcombat) · [m.shop](#mshop) · [m.data](#mdata) · [Options and results](#options-and-results) · [m.state](#mstate) · [Events](#events) · [Errors](#errors) · [Ids](#ids)`);
+**Contents:** [Starting a script](#starting-a-script) · [m](#m) · [m.skills](#mskills) · [m.bank](#mbank) · [m.player](#mplayer) · [m.combat](#mcombat) · [m.combat.slayer](#mcombatslayer) · [m.potions](#mpotions) · [m.shop](#mshop) · [m.data](#mdata) · [Options and results](#options-and-results) · [m.state](#mstate) · [Events](#events) · [Errors](#errors) · [Ids](#ids)`);
 
   // run / connect
   const run = find(index, 'run', ts.isFunctionDeclaration);
@@ -238,7 +238,7 @@ This page is generated from the source by \`bun run docs\`. The descriptions are
     ].join('\n\n'),
   );
 
-  const subApis = ['skills', 'bank', 'player', 'combat', 'shop', 'data'];
+  const subApis = ['skills', 'bank', 'player', 'combat', 'potions', 'shop', 'data'];
   sections.push(
     classSection('m', cls(melvor, 'Melvor'), subApis).replace(
       '## m\n',
@@ -296,6 +296,8 @@ This page is generated from the source by \`bun run docs\`. The descriptions are
     ['m.bank', 'Bank'],
     ['m.player', 'Player'],
     ['m.combat', 'Combat'],
+    ['m.combat.slayer', 'Slayer'],
+    ['m.potions', 'PotionManager'],
     ['m.shop', 'Shop'],
     ['m.data', 'GameData'],
   ] as const)
@@ -314,6 +316,8 @@ This page is generated from the source by \`bun run docs\`. The descriptions are
     'MonsterInfo',
     'AreaInfo',
     'ShopPurchaseInfo',
+    'SlayerCategoryInfo',
+    'SpellInfo',
     'FarmingPlotInfo',
     'PlantResult',
     'HarvestResult',
@@ -332,9 +336,18 @@ This page is generated from the source by \`bun run docs\`. The descriptions are
     [
       '## m.state',
       'The live mirror behind every synchronous read. Most scripts use the getters above instead; `m.onState(fn)` and `m.waitFor(predicate)` watch it.',
-      ...['GameState', 'MetaState', 'SkillState', 'PlayerState', 'ActionState', 'JobInfo', 'CombatState'].map((n) =>
-        typeTable(n, iface(protocol, n)),
-      ),
+      ...[
+        'GameState',
+        'MetaState',
+        'SkillState',
+        'PlayerState',
+        'SpellSelectionState',
+        'ActionState',
+        'JobInfo',
+        'CombatState',
+        'SlayerTaskState',
+        'PotionsState',
+      ].map((n) => typeTable(n, iface(protocol, n))),
     ].join('\n\n'),
   );
 

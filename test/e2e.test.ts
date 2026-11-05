@@ -15,9 +15,13 @@ import {
   connect,
   ActionStoppedError,
   MelvorError,
+  type AttackSpellId,
+  type AuroraSpellId,
   type CropId,
+  type CurseSpellId,
   type FarmingPlotId,
   type Melvor,
+  type SlayerCategoryId,
 } from '../src/client/index.ts';
 import { FakeGame, MELVOR_REALM, fakeClasses } from './fake-game.ts';
 
@@ -431,5 +435,141 @@ describe('farming (real-time)', () => {
     assert.ok(Math.abs(plot.readyInMs - 20_000) <= 100, `readyInMs ${plot.readyInMs}`);
     assert.equal(m.farmingSpeed, 1);
     assert.equal(Object.prototype.hasOwnProperty.call(game.farming, 'plantPlot'), false); // left alone
+  });
+});
+
+describe('slayer tasks (real-time)', () => {
+  const code = (c: string, re?: RegExp) => (e: MelvorError) => e.code === c && (!re || re.test(e.message));
+
+  it('newTask resolves once the game has picked a task; fight() runs until the task is done', async () => {
+    const m = await client();
+    const slayer = m.combat.slayer;
+    assert.equal(slayer.task, null);
+    const task = await slayer.newTask('test:Easy' as SlayerCategoryId);
+    assert.deepEqual(task, { monster: 'test:Chicken', killsLeft: 3, category: 'test:Easy', extended: false });
+    assert.deepEqual(slayer.task, task);
+    assert.deepEqual(m.combat.slayerTask, task);
+    const done = m.once('slayerTaskCompleted');
+    const r = await slayer.fight();
+    assert.equal(r.status, 'completed');
+    assert.equal(r.kills, 3);
+    assert.deepEqual(r.items, { 'test:Bones': 3 });
+    assert.equal(game.combat.isActive, false, 'leaves combat like fight() with kills');
+    assert.deepEqual(await done, { type: 'slayerTaskCompleted', category: 'test:Easy', monster: 'test:Chicken' });
+    // The game picks the next task in the same tier for free; ensureTask takes it (Hard is locked anyway).
+    const next = await slayer.ensureTask('test:Hard' as SlayerCategoryId);
+    assert.deepEqual(next, { monster: 'test:Cow', killsLeft: 3, category: 'test:Easy', extended: false });
+    assert.equal(game.combat.slayerTask.category!.tasksCompleted, 1);
+  });
+
+  it('locked and paid tiers, rerolls and extensions', async () => {
+    const m = await client();
+    const slayer = m.combat.slayer;
+    await assert.rejects(slayer.newTask('test:Hard' as SlayerCategoryId), code('LOCKED', /Slayer level 50/));
+    await assert.rejects(
+      slayer.newTask('test:Normal' as SlayerCategoryId),
+      (e: MelvorError) =>
+        e.code === 'MISSING_ITEMS' &&
+        (e.data as { missing: Record<string, number> }).missing['melvorD:SlayerCoins'] === 500,
+    );
+    await assert.rejects(slayer.newTask('test:Nope' as SlayerCategoryId), code('NOT_FOUND'));
+    await assert.rejects(slayer.extend(), code('NOT_READY'));
+    await assert.rejects(slayer.fight(), code('NOT_READY', /newTask/));
+
+    assert.equal((await slayer.newTask('test:Easy' as SlayerCategoryId)).monster, 'test:Chicken');
+    assert.equal((await slayer.newTask('test:Easy' as SlayerCategoryId)).monster, 'test:Cow', 'a reroll');
+    assert.equal((await slayer.ensureTask('test:Easy' as SlayerCategoryId)).monster, 'test:Cow', 'kept');
+
+    await assert.rejects(slayer.extend(), code('MISSING_ITEMS'));
+    game.slayerCoins.add(150);
+    assert.deepEqual(await slayer.extend(), {
+      monster: 'test:Cow',
+      killsLeft: 13,
+      category: 'test:Easy',
+      extended: true,
+    });
+    assert.equal(m.slayerCoins, 50);
+    await assert.rejects(slayer.extend(), code('FAILED', /already been extended/));
+
+    game.slayerCoins.add(450);
+    assert.equal((await slayer.newTask('test:Normal' as SlayerCategoryId)).category, 'test:Normal');
+    assert.equal(m.slayerCoins, 0);
+
+    const cats = await slayer.categories();
+    assert.deepEqual(
+      cats.map((c) => [c.id, c.unlocked]),
+      [
+        ['test:Easy', true],
+        ['test:Normal', true],
+        ['test:Hard', false],
+      ],
+    );
+    assert.deepEqual(cats[1]!.rollCost, [{ id: 'melvorD:SlayerCoins', quantity: 500 }]);
+    assert.deepEqual(cats[0]!.combatLevels, { min: 1, max: 49 });
+  });
+});
+
+describe('combat spells', () => {
+  const code = (c: string, re?: RegExp) => (e: MelvorError) => e.code === c && (!re || re.test(e.message));
+  const none = { attack: 'test:FireBolt', curse: null, aurora: null };
+
+  it('setSpells checks every spell before changing anything', async () => {
+    const m = await client();
+    const pl = m.player;
+    assert.deepEqual(pl.spells, { attack: 'test:WindStrike', curse: null, aurora: null });
+    await assert.rejects(pl.setSpells({ attack: 'test:FireWave' as AttackSpellId }), code('LOCKED', /Magic level 70/));
+    await assert.rejects(pl.setSpells({ attack: 'test:Nope' as AttackSpellId }), code('NOT_FOUND'));
+    await assert.rejects(pl.setSpells({ attack: null as never }), code('BAD_REQUEST'));
+    await assert.rejects(
+      pl.setSpells({ aurora: 'test:FuryII' as AuroraSpellId }),
+      code('LOCKED', /needs Oak Logs equipped/),
+    );
+    await assert.rejects(pl.setSpells({ curse: 'test:BlindingI' as CurseSpellId }), code('FAILED', /magic attacks/));
+
+    game.combat.player.attackType = 'magic';
+    const all = { attack: 'test:FireBolt', curse: 'test:BlindingI', aurora: 'test:SurgeI' };
+    assert.deepEqual(
+      await pl.setSpells({
+        attack: 'test:FireBolt' as AttackSpellId,
+        curse: 'test:BlindingI' as CurseSpellId,
+        aurora: 'test:SurgeI' as AuroraSpellId,
+      }),
+      all,
+    );
+    assert.deepEqual(pl.spells, all);
+    // Setting what's already selected keeps it (the game's own calls toggle).
+    assert.deepEqual(await pl.setSpells({ curse: 'test:BlindingI' as CurseSpellId }), all);
+
+    // Ancient Magicks allow no curses: refused as a whole, nothing changes.
+    await assert.rejects(
+      pl.setSpells({ attack: 'test:Bloodwave' as AttackSpellId, curse: 'test:BlindingI' as CurseSpellId }),
+      code('FAILED', /Ancient Magicks can't be used with curses/),
+    );
+    assert.deepEqual(pl.spells, all);
+    // On its own it drops the curse and aurora, as in the game.
+    assert.deepEqual(await pl.setSpells({ attack: 'test:Bloodwave' as AttackSpellId }), {
+      attack: 'test:Bloodwave',
+      curse: null,
+      aurora: null,
+    });
+    await pl.setSpells({ attack: 'test:FireBolt' as AttackSpellId, curse: 'test:BlindingI' as CurseSpellId });
+    assert.deepEqual(await pl.setSpells({ curse: null }), none);
+  });
+
+  it('data.spells lists attack spells, curses and auroras', async () => {
+    const m = await client();
+    const spells = await m.data.spells();
+    const fireWave = spells.find((s) => s.id === 'test:FireWave')!;
+    assert.equal(fireWave.kind, 'attack');
+    assert.equal(fireWave.spellbook, 'test:Standard');
+    assert.equal(fireWave.maxHit, 20);
+    assert.equal(fireWave.unlocked, false);
+    assert.equal(spells.find((s) => s.id === 'test:FireBolt')!.unlocked, true);
+    const fury = spells.find((s) => s.id === 'test:FuryII')!;
+    assert.deepEqual([fury.kind, fury.requiredItem, fury.unlocked], ['aurora', 'test:Oak_Logs', false]);
+    assert.deepEqual(
+      spells.filter((s) => s.kind === 'curse').map((s) => s.id),
+      ['test:BlindingI'],
+    );
   });
 });

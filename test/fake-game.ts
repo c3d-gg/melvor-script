@@ -72,6 +72,9 @@ class Timer {
   stop() {
     this.active = false;
   }
+  get isActive() {
+    return this.active;
+  }
   tick() {
     if (!this.active) return;
     if (--this.ticksLeft <= 0) {
@@ -627,7 +630,178 @@ export class Farming extends Emitter {
  * (enemies have 3 HP); deaths are checked once per tick (or by checkDeath()). Loot goes to the
  * loot container.
  */
+/** A Costs object holding only currencies (slayer rolls and extensions). */
+function currencyCosts(list: { currency: Currency; quantity: number }[]) {
+  return {
+    getCurrencyQuantityArray: () => list,
+    getItemQuantityArray: () => [],
+    checkIfOwned: () => list.every(({ currency, quantity }) => currency.amount >= quantity),
+    consumeCosts: () => list.forEach(({ currency, quantity }) => currency.remove(quantity)),
+  };
+}
+
+export class SlayerCategory extends Obj {
+  tasksCompleted = 0;
+  abyssalLevel = 0;
+  realm = MELVOR_REALM;
+  monsterSelection = { type: 'CombatLevel', minLevel: 1, maxLevel: 49 };
+  constructor(
+    id: string,
+    name: string,
+    public level: number,
+    public rollCost: { currency: Currency; quantity: number }[],
+    public extensionCost: { currency: Currency; quantity: number }[],
+  ) {
+    super(id, name);
+  }
+}
+
+/**
+ * Mirrors SlayerTask (slayer.js): picking a task starts a 1 s timer, ticked by the game, and
+ * finishing one picks the next in the same tier for free. Monsters are picked in registry order,
+ * never the current one.
+ */
+class SlayerTask extends Emitter {
+  active = false;
+  killsLeft = 0;
+  extended = false;
+  monster: any;
+  category: SlayerCategory | undefined;
+  autoStartNext = false;
+  autoSlayer = false;
+  categories = new Registry<SlayerCategory>();
+  taskTimer = new Timer(() => this.setTask());
+  /** Test knob: how many kills a new task needs. */
+  taskLength = 3;
+  constructor(private game: FakeGame) {
+    super();
+  }
+  getRollCosts(c: SlayerCategory) {
+    return currencyCosts(c.rollCost);
+  }
+  getExtensionCosts(c: SlayerCategory) {
+    return currencyCosts(c.extensionCost);
+  }
+  getMonsterSelection(_c: SlayerCategory) {
+    return this.game.monsters.allObjects.filter((m) => m !== this.monster);
+  }
+  selectTask(category: SlayerCategory, costsCurrency: boolean, _render: boolean, fromClick = false) {
+    const costs = this.getRollCosts(category);
+    if (costsCurrency && !costs.checkIfOwned()) return;
+    const selection = this.getMonsterSelection(category);
+    if (selection.length === 0) return;
+    if (costsCurrency) costs.consumeCosts();
+    this.monster = selection[0];
+    this.category = category;
+    this.active = false;
+    this.autoStartNext = !fromClick;
+    this.taskTimer.start(1000);
+  }
+  setTask() {
+    this.active = true;
+    this.extended = false;
+    this.killsLeft = this.taskLength;
+  }
+  extendTask() {
+    if (this.category === undefined) return;
+    const costs = this.getExtensionCosts(this.category);
+    if (!costs.checkIfOwned()) return;
+    costs.consumeCosts();
+    this.extended = true;
+    this.killsLeft += 10;
+  }
+  addKill() {
+    if (this.category === undefined) return;
+    this.killsLeft--;
+    if (this.killsLeft <= 0) {
+      const oldCount = this.category.tasksCompleted;
+      this.active = false;
+      this.category.tasksCompleted++;
+      this.emit('taskCompleted', { category: this.category, oldCount, newCount: this.category.tasksCompleted });
+      this.selectTask(this.category, false, false);
+    }
+  }
+  tick() {
+    this.taskTimer.tick();
+  }
+}
+
+export class PotionItem extends Item {
+  consumesOn = [{ type: 'PlayerAttack' }];
+  constructor(
+    id: string,
+    name: string,
+    public action: any,
+    public charges: number,
+    public tier = 0,
+  ) {
+    super(id, name);
+  }
+}
+
+/** Mirrors PotionManager (potionManager.js): one potion per action, a charge per matching event. */
+class PotionManager {
+  activePotions = new Map<any, { item: PotionItem; charges: number }>();
+  autoReuseActions = new Set<any>();
+  constructor(private game: FakeGame) {}
+  autoReusePotionsForAction(action: any) {
+    return this.autoReuseActions.has(action);
+  }
+  toggleAutoReusePotion(action: any) {
+    if (this.autoReuseActions.has(action)) this.autoReuseActions.delete(action);
+    else this.autoReuseActions.add(action);
+  }
+  usePotion(item: PotionItem) {
+    if (this.game.bank.getQty(item) < 1) return;
+    const existing = this.activePotions.get(item.action);
+    if (existing && existing.item === item) existing.charges = item.charges;
+    else this.activePotions.set(item.action, { item, charges: item.charges });
+    this.game.bank.removeItemQuantity(item, 1);
+  }
+  removePotion(action: any) {
+    this.activePotions.delete(action);
+  }
+  consumeChargeForAction(action: any) {
+    const potion = this.activePotions.get(action);
+    if (!potion) return;
+    if (--potion.charges <= 0) {
+      if (this.autoReuseActions.has(action) && this.game.bank.getQty(potion.item) > 0) this.usePotion(potion.item);
+      else this.removePotion(action);
+    }
+  }
+}
+
+export interface Spellbook {
+  id: string;
+  name: string;
+  allowCurses: boolean;
+  allowAuroras: boolean;
+  canUseWithDamageType(d: any): boolean;
+}
+
+export function spell(
+  id: string,
+  name: string,
+  level: number,
+  extra: { spellbook?: Spellbook; maxHit?: number; requiredItem?: Item } = {},
+) {
+  return {
+    id,
+    localID: id.split(':')[1]!,
+    name,
+    level,
+    abyssalLevel: 0,
+    requirements: [],
+    runesRequired: [] as { item: Item; quantity: number }[],
+    ...extra,
+  };
+}
+
 class Combat extends Emitter {
+  id = 'melvorD:Combat';
+  localID = 'Combat';
+  name = 'Combat';
+  slayerTask: SlayerTask;
   isActive = false;
   fightInProgress = false;
   selectedMonster: any;
@@ -643,6 +817,7 @@ class Combat extends Emitter {
   loot: any;
   constructor(private game: FakeGame) {
     super();
+    this.slayerTask = new SlayerTask(game);
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const combat = this;
     this.player = {
@@ -653,12 +828,50 @@ class Combat extends Emitter {
       autoEatThreshold: 0,
       food: { selectedSlot: 0, slots: [{ item: game.emptyFoodItem, quantity: 0 }] },
       selectedEquipmentSet: 0,
-      equipment: { equippedItems: {} },
+      equipment: { equippedItems: {} as Record<string, any>, checkForItem: (_item: any) => false },
       activePrayers: new Set(),
+      damageType: { id: 'melvorD:Normal', name: 'Normal Damage' },
+      spellSelection: { attack: undefined as any, curse: undefined as any, aurora: undefined as any },
+      // player.js: with magic the attack spell's book decides; other attack types need special items.
+      get canCurse() {
+        return this.attackType === 'magic' && this.spellSelection.attack?.spellbook.allowCurses === true;
+      },
+      get canAurora() {
+        return this.attackType === 'magic' && this.spellSelection.attack?.spellbook.allowAuroras === true;
+      },
+      canUseCombatSpell(sp: any, ignoreReqs = false) {
+        return (
+          (ignoreReqs ||
+            (game.altMagic.level >= sp.level &&
+              game.altMagic.abyssalLevel >= sp.abyssalLevel &&
+              game.checkRequirements(sp.requirements))) &&
+          (sp.requiredItem === undefined || this.equipment.checkForItem(sp.requiredItem))
+        );
+      },
+      selectAttackSpell(sp: any) {
+        if (sp === this.spellSelection.attack) return;
+        if (!sp.spellbook.canUseWithDamageType(this.damageType)) return;
+        this.spellSelection.attack = sp;
+        if (!sp.spellbook.allowCurses) this.spellSelection.curse = undefined;
+        if (!sp.spellbook.allowAuroras) this.spellSelection.aurora = undefined;
+      },
+      toggleCurse(sp: any) {
+        const attack = this.spellSelection.attack;
+        if (attack !== undefined && !attack.spellbook.allowCurses) return;
+        if (sp === this.spellSelection.curse) this.spellSelection.curse = undefined;
+        else if (this.canCurse) this.spellSelection.curse = sp;
+      },
+      toggleAurora(sp: any) {
+        const attack = this.spellSelection.attack;
+        if (attack !== undefined && !attack.spellbook.allowAuroras) return;
+        if (sp === this.spellSelection.aurora) this.spellSelection.aurora = undefined;
+        else if (this.canAurora) this.spellSelection.aurora = sp;
+      },
       actOnClick() {
         if (!combat.fightInProgress) return;
         combat.playerActs++;
         combat.enemy.hitpoints -= 1;
+        game.potions.consumeChargeForAction(combat);
       },
       getMonsterSpawnTime() {
         return 3000;
@@ -685,6 +898,9 @@ class Combat extends Emitter {
   }
   private get instant() {
     return this.game.currentGamemode.enableInstantActions;
+  }
+  get onSlayerTask() {
+    return this.slayerTask.active && this.slayerTask.monster === this.selectedMonster;
   }
   selectMonster(monster: any, area: any) {
     if (this.game.idleChecker(this)) return;
@@ -715,6 +931,7 @@ class Combat extends Emitter {
       this.enemy.state = 0;
       this.fightInProgress = false;
       this.loot.drops.push({ item: this.game.items.getObjectByID('test:Bones')!, quantity: 1 });
+      if (this.onSlayerTask) this.slayerTask.addKill();
       this.emit('monsterKilled', { monster: this.selectedMonster });
       if (this.isActive) this.loadNextEnemy();
     }
@@ -722,6 +939,7 @@ class Combat extends Emitter {
   /** Real order (combatManager.onEnemyDeath): loot drops, then 'monsterKilled', then the caller respawns. */
   kill() {
     this.game.bank.addItem(this.game.items.getObjectByID('test:Bones')!, 1);
+    if (this.onSlayerTask) this.slayerTask.addKill();
     this.emit('monsterKilled', { monster: this.selectedMonster });
     if (this.isActive) this.killTimer.start(200);
   }
@@ -740,6 +958,7 @@ class Combat extends Emitter {
     this.killTimer.tick();
     this.spawnTimer.tick();
     this.checkDeath();
+    this.slayerTask.tick();
   }
 }
 
@@ -764,7 +983,16 @@ export class FakeGame {
   prayers = new Registry<any>();
   attackStyles = new Registry<any>();
   equipmentSlots = new Registry<any>();
+  actions = new Registry<any>();
+  attackSpells = new Registry<any>();
+  curseSpells = new Registry<any>();
+  auroraSpells = new Registry<any>();
+  /** Magic: its level gates combat spells too. */
+  altMagic = { level: 40, abyssalLevel: 0 };
+  slayer = { level: 30, abyssalLevel: 0, isUnlocked: true, currentLevelCap: 99 };
   gp = this.currencies.register(new Currency('melvorD:GP', 'GP'));
+  slayerCoins = this.currencies.register(new Currency('melvorD:SlayerCoins', 'Slayer Coins'));
+  potions = new PotionManager(this);
   bank = new Bank(this);
   combat: Combat;
   woodcutting: Woodcutting;
@@ -826,9 +1054,52 @@ export class FakeGame {
     this.farming.plots.register(new FarmingPlot('test:TreePlot1', treeKind, 1));
 
     const monster = this.monsters.register({ id: 'test:Chicken', localID: 'Chicken', name: 'Chicken' });
-    const area = this.combatAreas.register({ id: 'test:Farm', localID: 'Farm', name: 'Farm', monsters: [monster] });
+    const cow = this.monsters.register({ id: 'test:Cow', localID: 'Cow', name: 'Cow' });
+    const area = this.combatAreas.register({
+      id: 'test:Farm',
+      localID: 'Farm',
+      name: 'Farm',
+      monsters: [monster, cow],
+    });
     (this as any).monsterArea = area;
     this.combat = new Combat(this);
+    this.actions.register(this.combat);
+    this.actions.register(this.woodcutting);
+
+    // Slayer: Easy is free; Hard costs coins and needs Slayer 50 (the fake player has 30).
+    const tasks = this.combat.slayerTask.categories;
+    tasks.register(new SlayerCategory('test:Easy', 'Easy', 1, [], [{ currency: this.slayerCoins, quantity: 100 }]));
+    tasks.register(
+      new SlayerCategory('test:Normal', 'Normal', 10, [{ currency: this.slayerCoins, quantity: 500 }], []),
+    );
+    tasks.register(new SlayerCategory('test:Hard', 'Hard', 50, [{ currency: this.slayerCoins, quantity: 1000 }], []));
+
+    // Potions: one for combat (2 charges), one for woodcutting.
+    this.items.register(new PotionItem('test:Melee_Potion', 'Melee Potion', this.combat, 2));
+    this.items.register(new PotionItem('test:Bird_Nest_Potion', 'Bird Nest Potion', this.woodcutting, 5));
+
+    // Spells: the player has Magic 40. Ancient Magicks allow no curses or auroras.
+    const book = (id: string, name: string, allow: boolean): Spellbook => ({
+      id,
+      name,
+      allowCurses: allow,
+      allowAuroras: allow,
+      canUseWithDamageType: () => true,
+    });
+    const standard = book('test:Standard', 'Standard Magic', true);
+    const ancient = book('test:Ancient', 'Ancient Magicks', false);
+    const windStrike = this.attackSpells.register(
+      spell('test:WindStrike', 'Wind Strike', 1, { spellbook: standard, maxHit: 2 }),
+    );
+    this.attackSpells.register(spell('test:FireBolt', 'Fire Bolt', 30, { spellbook: standard, maxHit: 12 }));
+    this.attackSpells.register(spell('test:FireWave', 'Fire Wave', 70, { spellbook: standard, maxHit: 20 }));
+    this.attackSpells.register(spell('test:Bloodwave', 'Bloodwave', 20, { spellbook: ancient, maxHit: 15 }));
+    this.curseSpells.register(spell('test:BlindingI', 'Blinding I', 10));
+    this.auroraSpells.register(spell('test:SurgeI', 'Surge I', 20));
+    this.auroraSpells.register(
+      spell('test:FuryII', 'Fury II', 30, { requiredItem: this.items.getObjectByID('test:Oak_Logs')! }),
+    );
+    this.combat.player.spellSelection.attack = windStrike;
   }
 
   getMonsterArea(_m: any) {

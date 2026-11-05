@@ -19,7 +19,7 @@
  * there ends the batch with a reason, like real-time jobs do.
  */
 import type { ActParams, ActionResult, AttackResult, FightResult, JobInfo, JobStatus } from '../shared/protocol.ts';
-import type { CombatController } from './api/combat.ts';
+import type { CombatController, FightUntil } from './api/combat.ts';
 import { RpcError, isInstance, safe, type GameObject, type RuntimeEnv } from './env.ts';
 import { allObjects, resolveSkill } from './lookup.ts';
 import { adapterFor, missingItems, type Resolved, type SkillAdapter } from './skills.ts';
@@ -82,6 +82,10 @@ interface JobSpec {
   maxClicks: number | null;
   /** Stop after this many kills (null = no limit). */
   targetKills: number | null;
+  /** Combat: checked after every click; ends the fight when it returns a result (slayer tasks). */
+  until?: FightUntil | null;
+  /** Shown as the job's target when `targetKills` is null. */
+  expected?: number | null;
   owner: Owner | null;
 }
 
@@ -461,8 +465,10 @@ export class ClickController {
   async fight(
     params: { monster: string; area?: string; kills?: number | null },
     owner: Owner | null,
+    until: { check: FightUntil; expected: number | null } | null = null,
   ): Promise<FightResult> {
     const kills = this.killCount(params.kills, 'kills');
+    if (until) return this.runFight(kills, owner, () => this.combat.selectMonster(params, true), until);
     if (kills === null) {
       // Just entering combat: not a click, so no cooldown, but it does end a running batch.
       if (this.job) this.finishJob(this.job, 'cancelled', 'superseded by a fight');
@@ -526,7 +532,12 @@ export class ClickController {
   // jobs
   // ---------------------------------------------------------------------------
 
-  private async runFight(kills: number, owner: Owner | null, select: () => void): Promise<FightResult> {
+  private async runFight(
+    kills: number | null,
+    owner: Owner | null,
+    select: () => void,
+    until: { check: FightUntil; expected: number | null } | null = null,
+  ): Promise<FightResult> {
     const job = await this.begin(
       {
         kind: 'combat',
@@ -536,6 +547,8 @@ export class ClickController {
         targetIds: [],
         maxClicks: null,
         targetKills: kills,
+        until: until?.check ?? null,
+        expected: until?.expected ?? null,
         owner,
       },
       select,
@@ -693,6 +706,8 @@ export class ClickController {
 
     if (job.targetKills !== null && job.kills >= job.targetKills) return this.finishJob(job, 'completed');
     if (job.maxClicks !== null && job.clicks >= job.maxClicks) return this.finishJob(job, 'completed');
+    const end = job.until?.();
+    if (end) return this.finishJob(job, end.status, end.reason);
     if (job.kind === 'skill') {
       if (out.bankFull) return this.finishJob(job, 'stopped', 'bank full');
       const missing = missingItems(this.game, job.adapter!.costsFor?.(job.skill, job.resolved!, this.game));
@@ -754,7 +769,7 @@ export class ClickController {
       jobId: job.id,
       skill: job.skill?.id ?? 'combat',
       targets: job.targetIds,
-      requested: job.kind === 'combat' ? job.targetKills : job.maxClicks,
+      requested: job.kind === 'combat' ? (job.targetKills ?? job.expected ?? null) : job.maxClicks,
       completed: job.kind === 'combat' ? job.kills : job.clicks,
       startedAt: job.startedAt,
       owner: job.owner?.name ?? 'game',

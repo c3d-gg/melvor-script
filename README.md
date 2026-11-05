@@ -109,7 +109,7 @@ Put your files in `scripts/` (`melvor init` starts you off with `hello.ts`). Eac
 - **Ctrl+C** or the in-game **stop** button ends it and cancels its actions.
 - **A fire-and-forget action that fails prints a warning instead of killing the loop.** Repeats are summarised, and calls made while not ready are ignored silently after the first notice. Errors thrown by your own code still stop the script.
 
-Examples (in [`examples/`](examples)): `hello.ts` (read state) · `loop.ts` (setInterval woodcut/burn) · `fight-loop.ts` (turn-based combat loop) · `woodcut-and-burn.ts` · `best-tree.ts` · `mine-and-smith.ts` · `food-and-fight.ts` · `farming.ts` (plant, wait, harvest).
+Examples (in [`examples/`](examples)): `hello.ts` (read state) · `loop.ts` (setInterval woodcut/burn) · `fight-loop.ts` (turn-based combat loop) · `woodcut-and-burn.ts` · `best-tree.ts` · `mine-and-smith.ts` · `food-and-fight.ts` · `farming.ts` (plant, wait, harvest) · `slayer.ts` (slayer tasks back to back, with a potion).
 
 The short version is below. The full one, with every property, result field, event and error, is the **[API reference](docs/API.md)**.
 
@@ -123,14 +123,16 @@ The short version is below. The full one, with every property, result field, eve
 | Farming            | `farming.plots()` · `plant(plot, crop)` · `plantAll(crop)` · `harvest(plot)` · `harvestAll()` · `compost(plot, item)` · `unlockPlot(plot)` · `whenGrown()`                                           |
 | Options            | `{ count: n \| Infinity, signal: AbortSignal, allowStop: true }`                                                                                                                                     |
 | `m.combat`         | `active fighting spawning monster area enemyHp loot slayerTask` · `start(monster)` · `attack()` (Scripted Mode) · `fight(monster, { kills })` · `dungeon(id, { runs })` · `collectLoot()` · `stop()` |
-| `m.player`         | `hp maxHp hpFraction food currentFood equipment` · `eat equipFood selectFood equip unequip togglePrayer setAttackStyle setEquipmentSet`                                                              |
+| Slayer             | `combat.slayer.task` · `newTask(tier)` · `ensureTask(tier)` · `extend()` · `fight()` (until the task is done) · `categories()`                                                                       |
+| `m.player`         | `hp maxHp hpFraction food currentFood equipment spells` · `eat equipFood selectFood equip unequip togglePrayer setAttackStyle setEquipmentSet setSpells({ attack, curse, aurora })`                  |
+| `m.potions`        | `active activeFor(action) autoReuse(action)` · `use(potion)` · `remove(action)` · `setAutoReuse(action, on)`                                                                                         |
 | `m.bank`           | `count has items() usedSlots maxSlots full` · `sell(id, n?)` `open` `bury`                                                                                                                           |
 | `m.shop`           | `buy(id, qty)` · `list()`                                                                                                                                                                            |
-| `m.data`           | `item(id) items() actions(skill) monsters() areas()` (cached)                                                                                                                                        |
+| `m.data`           | `item(id) items() actions(skill) monsters() areas()` (cached) · `spells()`                                                                                                                           |
 | Events             | `m.on('levelUp' \| 'monsterKilled' \| 'jobFinished' \| ..., fn)` · `m.once(...)` · `m.onState(fn)` · `m.waitFor(state => ...)`                                                                       |
 | Misc               | `m.gp` · `m.log/warn/success/error` (also shown in the game) · `m.stopAll()` · `m.cancelJobs()` · `m.setScriptMode(on)` · `m.eval('game.woodcutting.level')` (needs Allow eval)                      |
 
-Eating, looting, banking, the shop, equipment changes, farming and spending mastery pool XP are not actions: they have no cooldown.
+Eating, potions, looting, banking, the shop, equipment and spell changes, picking slayer tasks, farming and spending mastery pool XP are not actions: they have no cooldown.
 
 Actions return an `ActionResult` (`completed`, `actions`, `xp`, `items` deltas, `durationMs`). If a multi-action job ends early (bank full, out of materials, cancelled) it throws `ActionStoppedError` with the reason, unless you pass `allowStop: true`. The game refuses actions it can't start up front, with `LOCKED` or `MISSING_ITEMS` (`e.missing` lists what you lack).
 

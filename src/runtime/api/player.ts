@@ -1,6 +1,20 @@
 import { RpcError, safe, type GameObject } from '../env.ts';
 import { resolveIn, resolveItem } from '../lookup.ts';
+import { spellSelection } from '../state.ts';
 import { num, type ApiContext } from './context.ts';
+
+/** Why the player can't select a combat spell, or null if they can. */
+export function spellLockReason(game: GameObject, spell: GameObject): string | null {
+  const pl = game.combat.player;
+  if (safe(() => pl.canUseCombatSpell(spell) === true, true)) return null;
+  const magic = game.altMagic;
+  if (safe(() => magic.level < spell.level, false)) return `${spell.name} needs Magic level ${spell.level}`;
+  if (safe(() => (magic.abyssalLevel ?? 0) < (spell.abyssalLevel ?? 0), false))
+    return `${spell.name} needs abyssal Magic level ${spell.abyssalLevel}`;
+  if (spell.requiredItem && !safe(() => pl.equipment.checkForItem(spell.requiredItem), false))
+    return `${spell.name} needs ${spell.requiredItem.name} equipped`;
+  return `Requirements for ${spell.name} aren't met`;
+}
 
 export function registerPlayer(api: ApiContext) {
   const { rpc, env } = api;
@@ -79,5 +93,59 @@ export function registerPlayer(api: ApiContext) {
     const style = resolveIn(env.game.attackStyles, p.style, 'attack style');
     pl.setAttackStyle(style.attackType, style);
     return { style: style.id };
+  });
+
+  rpc.register('player.setSpells', (p: { attack?: string; curse?: string | null; aurora?: string | null }) => {
+    const g = env.game;
+    const pl = player();
+    if (p.attack === null) throw new RpcError('BAD_REQUEST', "attack can't be null: pick another attack spell");
+    // Check everything before changing anything, so a refused call leaves the selection as it was.
+    const attack = p.attack === undefined ? undefined : resolveIn(g.attackSpells, p.attack, 'attack spell');
+    const curse = p.curse === undefined || p.curse === null ? p.curse : resolveIn(g.curseSpells, p.curse, 'curse');
+    const aurora =
+      p.aurora === undefined || p.aurora === null ? p.aurora : resolveIn(g.auroraSpells, p.aurora, 'aurora');
+    for (const spell of [attack, curse, aurora]) {
+      const locked = spell ? spellLockReason(g, spell) : null;
+      if (locked) throw new RpcError('LOCKED', locked);
+    }
+    if (attack && !safe(() => attack.spellbook.canUseWithDamageType(pl.damageType) !== false, true))
+      throw new RpcError('LOCKED', `${attack.spellbook.name} spells can't be used with ${pl.damageType.name}`);
+
+    // Like player.js toggleCurse/toggleAurora: the attack spell's book has to allow them, and then
+    // you need magic attacks (canCurse follows the book once the stats are recomputed) or an item
+    // that allows them with other attack types (canCurse/canAurora come from its modifiers).
+    const book = (attack ?? safe(() => pl.spellSelection.attack, undefined as GameObject))?.spellbook;
+    const magic = pl.attackType === 'magic';
+    for (const [spell, kind, allowed, can] of [
+      [curse, 'curses', book?.allowCurses, pl.canCurse],
+      [aurora, 'auroras', book?.allowAuroras, pl.canAurora],
+    ] as const) {
+      if (!spell) continue;
+      if (allowed === false) throw new RpcError('FAILED', `${book.name} can't be used with ${kind}`);
+      if (!magic && !can)
+        throw new RpcError(
+          'FAILED',
+          `${kind[0]!.toUpperCase()}${kind.slice(1)} need magic attacks (equip a magic weapon), or an item that allows them with other attacks`,
+        );
+    }
+
+    if (attack) pl.selectAttackSpell(attack, false);
+    // toggleCurse / toggleAurora flip the selection, so only call them when it should change.
+    const sel = pl.spellSelection;
+    if (curse === null && sel.curse !== undefined) pl.toggleCurse(sel.curse, false);
+    else if (curse && sel.curse !== curse) pl.toggleCurse(curse, false);
+    if (aurora === null && sel.aurora !== undefined) pl.toggleAurora(sel.aurora, false);
+    else if (aurora && sel.aurora !== aurora) pl.toggleAurora(aurora, false);
+
+    const now = spellSelection(g);
+    for (const [kind, want] of [
+      ['attack', attack],
+      ['curse', curse],
+      ['aurora', aurora],
+    ] as const) {
+      if (want !== undefined && now[kind] !== (want === null ? null : want.id))
+        throw new RpcError('FAILED', `The game didn't select ${want === null ? `no ${kind}` : want.name}`);
+    }
+    return now;
   });
 }

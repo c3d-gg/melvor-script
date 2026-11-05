@@ -3,7 +3,17 @@
  * can read state synchronously (`m.bank.count(id)`, `m.skills.mining.level`).
  * Each section is diffed as a JSON string and only changed sections are pushed.
  */
-import type { ActionState, CombatState, GameState, PlayerState, SkillState, StateSection } from '../shared/protocol.ts';
+import type {
+  ActionState,
+  CombatState,
+  GameState,
+  PlayerState,
+  PotionsState,
+  SkillState,
+  SlayerTaskState,
+  SpellSelectionState,
+  StateSection,
+} from '../shared/protocol.ts';
 import { safe, type GameObject, type RuntimeEnv } from './env.ts';
 import { allObjects, idOf } from './lookup.ts';
 import { masteryPools } from './mastery.ts';
@@ -46,6 +56,7 @@ export function buildState(sc: StateContext): GameState {
     player: buildPlayer(game),
     action: { ...buildAction(sc), readyAt: clicks.readyAt, cooldownMs: clicks.cooldownMs },
     combat: buildCombat(game),
+    potions: buildPotions(game),
   };
 }
 
@@ -130,6 +141,47 @@ function buildPlayer(game: GameObject): PlayerState {
     equipmentSet: safe(() => p.selectedEquipmentSet, 0),
     equipment,
     activePrayers: safe(() => [...(p.activePrayers as Set<GameObject>)].map((x) => x.id), []),
+    spells: spellSelection(game),
+  };
+}
+
+/** The selected combat spells of the current equipment set. */
+export function spellSelection(game: GameObject): SpellSelectionState {
+  const sel = safe(() => game.combat.player.spellSelection, undefined as GameObject);
+  return {
+    attack: safe(() => idOf(sel.attack), null),
+    curse: safe(() => idOf(sel.curse), null),
+    aurora: safe(() => idOf(sel.aurora), null),
+  };
+}
+
+function buildPotions(game: GameObject): PotionsState {
+  const active: PotionsState['active'] = {};
+  const potions = safe(() => game.potions, undefined as GameObject);
+  safe(() => potions.activePotions as Map<GameObject, GameObject>, new Map()).forEach((ap, action) => {
+    const item = idOf(ap?.item);
+    const id = idOf(action);
+    if (item && id) active[id] = { item, charges: safe(() => ap.charges as number, 0) };
+  });
+  const autoReuse: string[] = [];
+  for (const action of safe(() => potions.autoReuseActions as Set<GameObject>, new Set<GameObject>())) {
+    const id = idOf(action);
+    if (id) autoReuse.push(id);
+  }
+  return { active, autoReuse };
+}
+
+/** The active slayer task, or null (none, or the game is still picking one). */
+export function slayerTaskState(game: GameObject): SlayerTaskState | null {
+  const task = safe(() => game.combat.slayerTask, undefined as GameObject);
+  if (!safe(() => task.active === true, false)) return null;
+  const monster = safe(() => idOf(task.monster), null);
+  if (!monster) return null;
+  return {
+    monster,
+    killsLeft: safe(() => task.killsLeft as number, 0),
+    category: safe(() => idOf(task.category), '') ?? '',
+    extended: safe(() => task.extended === true, false),
   };
 }
 
@@ -150,8 +202,6 @@ function buildAction(sc: StateContext): Omit<ActionState, 'readyAt' | 'cooldownM
 
 function buildCombat(game: GameObject): CombatState {
   const c = safe(() => game.combat, undefined as GameObject);
-  const task = safe(() => c.slayerTask, undefined as GameObject);
-  const taskMonster = safe(() => task.monster, undefined as GameObject);
   const active = safe(() => !!c.isActive || game.activeAction === c, false);
   const enemyState = safe(() => c.enemy.state as number | undefined, undefined);
   const fighting =
@@ -170,7 +220,7 @@ function buildCombat(game: GameObject): CombatState {
     fighting,
     spawning: active && !fighting && safe(() => !!c.spawnTimer?.isActive || enemyState === ENEMY_SPAWNING, false),
     loot,
-    slayerTask: taskMonster ? { monster: taskMonster.id, killsLeft: safe(() => task.killsLeft, 0) } : null,
+    slayerTask: slayerTaskState(game),
   };
 }
 

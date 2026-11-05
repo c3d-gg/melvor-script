@@ -23,18 +23,24 @@ import type {
   RuntimeInfo,
   ShopPurchaseInfo,
   SkillState,
+  SlayerCategoryInfo,
+  SlayerTaskState,
+  SpellInfo,
   StateNotification,
   StateSection,
 } from '../shared/protocol.ts';
 import { PROTOCOL_VERSION } from '../shared/protocol.ts';
 import type {
   AltSpellId,
+  AttackSpellId,
   AttackStyleId,
+  AuroraSpellId,
   CombatAreaId,
   ConstellationId,
   CookingRecipeId,
   CraftingRecipeId,
   CropId,
+  CurseSpellId,
   DigSiteId,
   DungeonId,
   EquipmentSlotId,
@@ -48,11 +54,13 @@ import type {
   LogId,
   MonsterId,
   NpcId,
+  PotionId,
   PrayerId,
   RockId,
   RunecraftingRecipeId,
   ShopPurchaseId,
   SkillId,
+  SlayerCategoryId,
   SmithingRecipeId,
   SummoningRecipeId,
   TreeId,
@@ -614,10 +622,143 @@ export class Player {
   setAttackStyle(style: AttackStyleId) {
     return this.m.connection.call('player.setAttackStyle', { style });
   }
+
+  /** The selected combat spells. The attack spell is what you cast when attacking with magic. */
+  get spells(): SpellSelection {
+    return (this.p.spells ?? { attack: null, curse: null, aurora: null }) as SpellSelection;
+  }
+  /**
+   * Choose combat spells (see `AttackSpells`, `Curses`, `Auroras`). Leave a key out to keep it;
+   * `null` removes the curse or aurora. Curses and auroras need magic attacks, and a spellbook
+   * that allows them. Free: no cooldown.
+   *
+   *   await m.player.setSpells({ attack: AttackSpells.FireBolt, curse: Curses.WeakeningI });
+   */
+  setSpells(spells: { attack?: AttackSpellId; curse?: CurseSpellId | null; aurora?: AuroraSpellId | null }) {
+    return this.m.connection.call('player.setSpells', spells) as Promise<SpellSelection>;
+  }
+}
+
+/** Selected combat spells (null = none). */
+export interface SpellSelection {
+  attack: AttackSpellId | null;
+  curse: CurseSpellId | null;
+  aurora: AuroraSpellId | null;
+}
+
+/** A slayer task. */
+export type SlayerTask = Omit<SlayerTaskState, 'monster' | 'category'> & {
+  monster: MonsterId;
+  category: SlayerCategoryId;
+};
+
+/** What a potion works for: 'melvorD:Combat' or a skill. */
+export type PotionAction = 'melvorD:Combat' | SkillId;
+
+/** A potion in use. */
+export interface ActivePotion {
+  item: PotionId;
+  /** Charges left. */
+  charges: number;
+}
+
+export class Slayer {
+  constructor(private m: Melvor) {}
+
+  /** Your slayer task, or null. After a task is done it's null for about a second, while the game picks the next. */
+  get task(): SlayerTask | null {
+    return this.m.state.combat.slayerTask as SlayerTask | null;
+  }
+
+  /** Every task tier: level, costs, completions, and whether you can pick it. */
+  categories(): Promise<SlayerCategoryInfo[]> {
+    return this.m.connection.call('slayer.categories');
+  }
+
+  /**
+   * Get a new task in a tier (see `SlayerCategories`), paying its cost (Easy is free).
+   * It replaces the task you have. Resolves with the task once the game has picked it (about a second).
+   * When a task is done the game picks the next one in the same tier for free; calling this
+   * during that second takes that one instead of paying for another.
+   */
+  newTask(category: SlayerCategoryId): Promise<SlayerTask> {
+    return this.m.connection.call('slayer.newTask', { category }) as Promise<SlayerTask>;
+  }
+
+  /** Your task if you have one (or the one the game is picking), otherwise a new one in `category`. */
+  ensureTask(category: SlayerCategoryId): Promise<SlayerTask> {
+    return this.m.connection.call('slayer.newTask', { category, keepCurrent: true }) as Promise<SlayerTask>;
+  }
+
+  /** Extend your task for more kills (once per task; costs Slayer Coins). */
+  extend(): Promise<SlayerTask> {
+    return this.m.connection.call('slayer.extend') as Promise<SlayerTask>;
+  }
+
+  /**
+   * Fight your task's monster until the task is done. Like `m.combat.fight` with `kills`: in instant
+   * mode it attacks for you, and it leaves combat afterwards. Rejects with `FightStoppedError` if
+   * the fight ends early (you died or fled, or the task changed), unless `allowStop`.
+   *
+   *   await m.combat.slayer.ensureTask(SlayerCategories.Easy);
+   *   await m.combat.slayer.fight();
+   */
+  async fight(opts: { allowStop?: boolean } = {}): Promise<FightResult> {
+    const result = await this.m._paced(() => this.m.connection.call('slayer.fight'));
+    if (result.status !== 'completed' && !opts.allowStop) throw new FightStoppedError(result);
+    return result;
+  }
+}
+
+export class PotionManager {
+  constructor(private m: Melvor) {}
+
+  private get s() {
+    return this.m.state.potions ?? { active: {}, autoReuse: [] };
+  }
+
+  /** Potions in use, keyed by what they work for ('melvorD:Combat' or a skill id). */
+  get active(): Partial<Record<PotionAction, ActivePotion>> {
+    return this.s.active as Partial<Record<PotionAction, ActivePotion>>;
+  }
+  /** The potion in use for combat or a skill, or null. */
+  activeFor(action: PotionAction): ActivePotion | null {
+    return (this.s.active[action] as ActivePotion | undefined) ?? null;
+  }
+  /** True when that action's potion is refilled from the bank as its charges run out. */
+  autoReuse(action: PotionAction): boolean {
+    return this.s.autoReuse.includes(action);
+  }
+
+  /**
+   * Drink a potion from the bank. It works for its action (combat, or one skill) until its charges
+   * run out. The same potion again tops its charges back up; another one for the same action
+   * replaces it. Free: no cooldown.
+   */
+  use(potion: PotionId) {
+    return this.m.connection.call('potions.use', { item: potion }) as Promise<{
+      action: PotionAction;
+      item: PotionId;
+      charges: number;
+    }>;
+  }
+  /** Stop using the potion for combat or a skill (its charges are lost). */
+  remove(action: PotionAction) {
+    return this.m.connection.call('potions.remove', { action });
+  }
+  /** Refill that action's potion from the bank as it runs out (the game's "auto re-use" box). */
+  setAutoReuse(action: PotionAction, enabled = true) {
+    return this.m.connection.call('potions.setAutoReuse', { action, enabled });
+  }
 }
 
 export class Combat {
-  constructor(private m: Melvor) {}
+  /** Slayer tasks: get one, extend it, fight it. */
+  readonly slayer: Slayer;
+
+  constructor(private m: Melvor) {
+    this.slayer = new Slayer(m);
+  }
 
   private get c() {
     return this.m.state.combat;
@@ -642,9 +783,9 @@ export class Combat {
   get enemyMaxHp(): number {
     return this.c.enemyMaxHp;
   }
-  /** Your slayer task, or null. */
-  get slayerTask() {
-    return this.c.slayerTask as { monster: MonsterId; killsLeft: number } | null;
+  /** Your slayer task, or null. Same as `m.combat.slayer.task`. */
+  get slayerTask(): SlayerTask | null {
+    return this.c.slayerTask as SlayerTask | null;
   }
   /** An enemy is alive and can be attacked. */
   get fighting(): boolean {
@@ -761,6 +902,10 @@ export class GameData {
   async areas(): Promise<AreaInfo[]> {
     return (this.areaCache ??= await this.m.connection.call('data.areas'));
   }
+  /** Combat spells (attack spells, curses, auroras), with levels, runes and whether you can use them. */
+  spells(): Promise<SpellInfo[]> {
+    return this.m.connection.call('data.spells');
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -778,8 +923,10 @@ export class Melvor {
   readonly bank: Bank;
   /** HP, food, equipment and prayers. */
   readonly player: Player;
-  /** Fighting monsters and dungeons. */
+  /** Fighting monsters and dungeons, and slayer tasks. */
   readonly combat: Combat;
+  /** Potions for combat and skills. */
+  readonly potions: PotionManager;
   /** Buying from the shop. */
   readonly shop: Shop;
   /** Game data: items, skill actions, monsters, areas. */
@@ -818,6 +965,7 @@ export class Melvor {
     this.bank = new Bank(this);
     this.player = new Player(this);
     this.combat = new Combat(this);
+    this.potions = new PotionManager(this);
     this.shop = new Shop(this);
     this.data = new GameData(this);
     connection.onNotification((n) => {
