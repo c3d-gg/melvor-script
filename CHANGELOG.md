@@ -4,6 +4,12 @@ All notable changes, newest first. Versions follow [Semantic Versioning](https:/
 bump may change behaviour). Entries are written by `bun run release` from
 [Conventional Commit](https://www.conventionalcommits.org) messages.
 
+## [0.6.0](https://github.com/c3d-gg/melvor-script/releases/tag/v0.6.0) - 2026-11-05
+
+### Features
+
+- **farming:** Farming API and a Farming speed setting for Scripted Mode ([f86cc00](https://github.com/c3d-gg/melvor-script/commit/f86cc00140dd98eaa68f8edbbe5d0dcf80ea62c0))
+
 ## [0.5.0](https://github.com/c3d-gg/melvor-script/releases/tag/v0.5.0) - 2026-11-05
 
 ### Features
