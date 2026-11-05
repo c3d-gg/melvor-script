@@ -88,6 +88,14 @@ export const CATEGORIES: Category[] = [
     constName: 'Veins',
     doc: 'Harvesting veins (Into the Abyss).',
   },
+  { key: 'actions:melvorD:Farming', type: 'CropId', constName: 'Crops', doc: 'Farming crops: what you plant.' },
+  { key: 'farmingPlots', type: 'FarmingPlotId', constName: 'FarmingPlots', doc: 'Farming plots.' },
+  {
+    key: 'farmingCategories',
+    type: 'FarmingCategoryId',
+    constName: 'FarmingCategories',
+    doc: 'Kinds of farming plot: allotments, herbs, trees, special plots.',
+  },
 ];
 
 const RESERVED = new Set(['constructor', 'prototype', '__proto__', 'toString', 'valueOf', 'hasOwnProperty']);

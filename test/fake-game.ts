@@ -405,6 +405,221 @@ export class Thieving extends GatheringSkill {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Farming: mirrors farming2.js (v1.3.x)
+// ---------------------------------------------------------------------------
+
+export const PLOT = { Locked: 0, Empty: 1, Growing: 2, Grown: 3, Dead: 4 } as const;
+
+export class FarmingCategory extends Obj {
+  constructor(
+    id: string,
+    name: string,
+    public giveXPOnPlant: boolean,
+    public harvestMultiplier: number,
+    public scaleXPWithQuantity: boolean,
+  ) {
+    super(id, name);
+  }
+}
+
+export class Crop extends Action {
+  baseQuantity = 1;
+  constructor(
+    id: string,
+    name: string,
+    level: number,
+    baseExperience: number,
+    product: Item,
+    public category: FarmingCategory,
+    public baseInterval: number,
+    public seedCost: { item: Item; quantity: number },
+  ) {
+    super(id, name, level, baseExperience, product);
+  }
+}
+
+export class CompostItem extends Item {
+  constructor(
+    id: string,
+    name: string,
+    public compostValue: number,
+    public harvestBonus: number,
+  ) {
+    super(id, name);
+  }
+}
+
+export class FarmingPlot extends Obj {
+  state: number;
+  compostLevel = 0;
+  compostItem: CompostItem | undefined;
+  plantedRecipe: Crop | undefined;
+  growthTime = 0;
+  abyssalLevel = 0;
+  constructor(
+    id: string,
+    public category: FarmingCategory,
+    public level: number,
+    public currencyCosts: { currency: Currency; quantity: number }[] = [],
+  ) {
+    super(id, id.split(':')[1]!);
+    this.state = currencyCosts.length === 0 && level === 1 ? PLOT.Empty : PLOT.Locked;
+  }
+}
+
+class GrowthTimer extends Timer {
+  plots: FarmingPlot[] = [];
+}
+
+export class Farming extends Emitter {
+  _xp = 0;
+  _level = 1;
+  abyssalLevel = 0;
+  isUnlocked = true;
+  currentLevelCap = 99;
+  actions = new Registry<Crop>();
+  categories = new Registry<FarmingCategory>();
+  plots = new Registry<FarmingPlot>();
+  growthTimers = new Set<GrowthTimer>();
+  growthTimerMap = new Map<FarmingPlot, GrowthTimer>();
+  renderQueue = { growthState: new Set(), growthTime: new Set(), compost: new Set() };
+  /** Test knob: the growth roll (rollPercentage(chance) is `rng() < chance`). */
+  rng = () => 0;
+  constructor(
+    public game: FakeGame,
+    public id: string,
+    public name: string,
+  ) {
+    super();
+  }
+  get localID() {
+    return this.id.split(':')[1];
+  }
+  get xp() {
+    return this._xp;
+  }
+  get level() {
+    return this._level;
+  }
+  addXP(n: number) {
+    this._xp += n;
+    this._level = 1 + Math.floor(this._xp / 100);
+  }
+  isMasteryActionUnlocked(a: Crop) {
+    return this.level >= a.level;
+  }
+  getRecipeSeedCost(r: Crop) {
+    return r.seedCost.quantity;
+  }
+  getPlotGrowthChance(plot: FarmingPlot) {
+    return 50 + plot.compostLevel / 2;
+  }
+  getPlotGrowthTime(plot: FarmingPlot) {
+    const t = this.growthTimerMap.get(plot);
+    return t ? t.ticksLeft * TICK : 0;
+  }
+  growPlots(timer: GrowthTimer) {
+    for (const plot of timer.plots) {
+      plot.state = this.rng() < this.getPlotGrowthChance(plot) ? PLOT.Grown : PLOT.Dead;
+      this.growthTimerMap.delete(plot);
+    }
+    this.removeGrowthTimer(timer);
+  }
+  removeGrowthTimer(timer: GrowthTimer) {
+    this.growthTimers.delete(timer);
+  }
+  plantPlot(plot: FarmingPlot, recipe: Crop) {
+    if (plot.state !== PLOT.Empty) return -1;
+    const seeds = this.getRecipeSeedCost(recipe);
+    if (this.game.bank.getQty(recipe.seedCost.item) < seeds) return -1;
+    const interval = recipe.baseInterval;
+    // farming2.js: instant actions mark the crop grown on the spot (the timer still runs).
+    plot.state = this.game.currentGamemode.enableInstantActions ? PLOT.Grown : PLOT.Growing;
+    plot.plantedRecipe = recipe;
+    plot.growthTime = interval / 1000;
+    this.game.bank.removeItemQuantity(recipe.seedCost.item, seeds);
+    if (recipe.category.giveXPOnPlant) this.addXP(recipe.baseExperience);
+    return interval;
+  }
+  plantRecipe(recipe: Crop, plot: FarmingPlot) {
+    const interval = this.plantPlot(plot, recipe);
+    if (interval <= 0) return;
+    this.createGrowthTimer([plot], interval);
+  }
+  createGrowthTimer(plots: FarmingPlot[], interval: number) {
+    const timer: GrowthTimer = new GrowthTimer(() => this.growPlots(timer));
+    timer.plots = plots;
+    this.growthTimers.add(timer);
+    for (const p of plots) this.growthTimerMap.set(p, timer);
+    timer.start(interval);
+  }
+  harvestPlot(plot: FarmingPlot) {
+    if (plot.state !== PLOT.Grown || plot.plantedRecipe === undefined) return false;
+    const recipe = plot.plantedRecipe;
+    const qty = recipe.baseQuantity * recipe.category.harvestMultiplier;
+    if (!this.game.bank.addItem(recipe.product, qty)) return false;
+    this.addXP(recipe.baseExperience * (recipe.category.scaleXPWithQuantity ? qty : 1));
+    this.resetPlot(plot);
+    return true;
+  }
+  clearDeadPlot(plot: FarmingPlot) {
+    if (plot.state !== PLOT.Dead || plot.plantedRecipe === undefined) return;
+    this.resetPlot(plot);
+  }
+  /** Like the real one, it leaves the plot in its (finished) timer's map entry alone. */
+  resetPlot(plot: FarmingPlot) {
+    plot.state = PLOT.Empty;
+    plot.plantedRecipe = undefined;
+    plot.growthTime = 0;
+    plot.compostItem = undefined;
+    plot.compostLevel = 0;
+  }
+  compostPlot(plot: FarmingPlot, compost: CompostItem, amount: number) {
+    if (plot.state !== PLOT.Empty) return false;
+    const owned = this.game.bank.getQty(compost);
+    if (plot.compostItem !== undefined && plot.compostItem.harvestBonus >= compost.harvestBonus) {
+      if (plot.compostItem.harvestBonus > compost.harvestBonus || plot.compostLevel === 100) return false;
+      amount = Math.min(amount, Math.ceil((100 - plot.compostLevel) / compost.compostValue), owned);
+      if (amount <= 0) return false;
+      plot.compostLevel = Math.min(100, plot.compostLevel + amount * compost.compostValue);
+    } else {
+      amount = Math.min(amount, Math.ceil(100 / compost.compostValue), owned);
+      if (amount <= 0) return false;
+      plot.compostLevel = Math.min(100, amount * compost.compostValue);
+      plot.compostItem = compost;
+    }
+    this.game.bank.removeItemQuantity(compost, amount);
+    return true;
+  }
+  getPlotUnlockCosts(plot: FarmingPlot) {
+    return {
+      getCurrencyQuantityArray: () => plot.currencyCosts,
+      getItemQuantityArray: () => [],
+      checkIfOwned: () => plot.currencyCosts.every(({ currency, quantity }) => currency.amount >= quantity),
+      consumeCosts: () => plot.currencyCosts.forEach(({ currency, quantity }) => currency.remove(quantity)),
+    };
+  }
+  unlockPlotOnClick(plot: FarmingPlot) {
+    const costs = this.getPlotUnlockCosts(plot);
+    if (!costs.checkIfOwned() || this.level < plot.level) return;
+    costs.consumeCosts();
+    plot.state = PLOT.Empty;
+  }
+  destroyPlot(plot: FarmingPlot) {
+    if (plot.state !== PLOT.Growing) return;
+    this.resetPlot(plot);
+    const timer = this.growthTimerMap.get(plot)!;
+    this.growthTimerMap.delete(plot);
+    timer.plots.splice(timer.plots.indexOf(plot), 1);
+    if (timer.plots.length === 0) this.removeGrowthTimer(timer);
+  }
+  /** passiveTick: growth timers run every tick, whatever else is going on. */
+  tick() {
+    for (const t of this.growthTimers) t.tick();
+  }
+}
+
 /**
  * Real-time mode: a kill every 200ms (loot straight to the bank).
  * Instant mode (baseManager.js / character.js): spawn timer, then the enemy only moves when the
@@ -555,6 +770,7 @@ export class FakeGame {
   woodcutting: Woodcutting;
   smithing: ArtisanSkill;
   thieving: Thieving;
+  farming: Farming;
   unknownCombatArea = { id: 'melvorD:UnknownArea' };
   playerCombatLevel = 3;
 
@@ -581,6 +797,33 @@ export class FakeGame {
     this.thieving = this.skills.register(new Thieving(this, 'test:Thieving', 'Thieving'));
     const npc = this.thieving.actions.register(new Action('test:Man', 'Man', 1, 5, logs));
     this.thieving.areas.register({ id: 'test:Low', localID: 'Low', npcs: [npc] });
+
+    // Farming: allotments (XP on planting, x2 harvest) and trees. Plot 3 is locked behind 500 GP.
+    this.farming = this.skills.register(new Farming(this, 'test:Farming', 'Farming'));
+    const allotment = this.farming.categories.register(
+      new FarmingCategory('test:Allotment', 'Allotments', true, 2, true),
+    );
+    const treeKind = this.farming.categories.register(new FarmingCategory('test:Tree', 'Trees', false, 1, false));
+    const potatoSeed = item('test:Potato_Seed', 'Potato Seeds');
+    const oakSeed = item('test:Oak_Seed', 'Oak Tree Seeds');
+    const potato = item('test:Potato', 'Potato');
+    this.items.register(new CompostItem('test:Compost', 'Compost', 20, 0));
+    this.items.register(new CompostItem('test:Weird_Gloop', 'Weird Gloop', 50, 10));
+    this.farming.actions.register(
+      new Crop('test:Potatoes', 'Potatoes', 1, 8, potato, allotment, 20_000, { item: potatoSeed, quantity: 3 }),
+    );
+    this.farming.actions.register(
+      new Crop('test:Oak_Tree', 'Oak Tree', 1, 50, logs, treeKind, 40_000, { item: oakSeed, quantity: 1 }),
+    );
+    this.farming.actions.register(
+      new Crop('test:Carrots', 'Carrots', 30, 20, potato, allotment, 20_000, { item: potatoSeed, quantity: 1 }),
+    );
+    this.farming.plots.register(new FarmingPlot('test:AllotmentPlot1', allotment, 1));
+    this.farming.plots.register(new FarmingPlot('test:AllotmentPlot2', allotment, 1));
+    this.farming.plots.register(
+      new FarmingPlot('test:AllotmentPlot3', allotment, 1, [{ currency: this.gp, quantity: 500 }]),
+    );
+    this.farming.plots.register(new FarmingPlot('test:TreePlot1', treeKind, 1));
 
     const monster = this.monsters.register({ id: 'test:Chicken', localID: 'Chicken', name: 'Chicken' });
     const area = this.combatAreas.register({ id: 'test:Farm', localID: 'Farm', name: 'Farm', monsters: [monster] });

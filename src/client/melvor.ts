@@ -6,7 +6,10 @@ import type {
   AreaInfo,
   AttackResult,
   CanDoResult,
+  FarmingPlotInfo,
   FightResult,
+  HarvestResult,
+  PlantResult,
   GameEventMessage,
   GameEventType,
   GameState,
@@ -31,9 +34,12 @@ import type {
   ConstellationId,
   CookingRecipeId,
   CraftingRecipeId,
+  CropId,
   DigSiteId,
   DungeonId,
   EquipmentSlotId,
+  FarmingCategoryId,
+  FarmingPlotId,
   FishId,
   FletchingRecipeId,
   FoodId,
@@ -126,8 +132,35 @@ export class Skill {
   }
 }
 
+/** A skill with mastery: every skill with actions, plus Farming. `T` is its action id type. */
+export class MasterySkill<T extends string = string> extends Skill {
+  /** One action's mastery: level (1 to 99), XP, and XP to the next level. */
+  async mastery(action: T): Promise<MasteryInfo> {
+    const all = await this.m.connection.call('mastery.get', { skill: this.id, actions: [action] });
+    return Object.values(all)[0]!;
+  }
+
+  /** Mastery of every action in this skill, keyed by action id. */
+  masteries(): Promise<Record<T, MasteryInfo>> {
+    return this.m.connection.call('mastery.get', { skill: this.id }) as Promise<Record<T, MasteryInfo>>;
+  }
+
+  /**
+   * Spend mastery pool XP to raise an action's mastery by `levels` (default 1), like the game's
+   * "Spend Mastery XP" menu. Free: no cooldown. Refuses if it would drop the pool below a
+   * checkpoint (10/25/50/95%) and lose that bonus, unless `allowCheckpointLoss` is set.
+   */
+  spendMasteryPool(
+    action: T,
+    levels = 1,
+    opts: { allowCheckpointLoss?: boolean } = {},
+  ): Promise<MasteryInfo & { spent: number }> {
+    return this.m.connection.call('mastery.spendPool', { skill: this.id, action, levels, ...opts });
+  }
+}
+
 /** A skill whose actions can be scripted (every gathering and artisan skill). */
-export class ActionSkill<T extends string = string> extends Skill {
+export class ActionSkill<T extends string = string> extends MasterySkill<T> {
   /**
    * Perform `count` actions on a target (default 1).
    *
@@ -157,30 +190,6 @@ export class ActionSkill<T extends string = string> extends Skill {
   /** True while a script job for this skill is running. */
   get busy(): boolean {
     return this.m.state.action.jobs.some((j) => j.skill === this.id);
-  }
-
-  /** One action's mastery: level (1 to 99), XP, and XP to the next level. */
-  async mastery(action: T): Promise<MasteryInfo> {
-    const all = await this.m.connection.call('mastery.get', { skill: this.id, actions: [action] });
-    return Object.values(all)[0]!;
-  }
-
-  /** Mastery of every action in this skill, keyed by action id. */
-  masteries(): Promise<Record<T, MasteryInfo>> {
-    return this.m.connection.call('mastery.get', { skill: this.id }) as Promise<Record<T, MasteryInfo>>;
-  }
-
-  /**
-   * Spend mastery pool XP to raise an action's mastery by `levels` (default 1), like the game's
-   * "Spend Mastery XP" menu. Free: no cooldown. Refuses if it would drop the pool below a
-   * checkpoint (10/25/50/95%) and lose that bonus, unless `allowCheckpointLoss` is set.
-   */
-  spendMasteryPool(
-    action: T,
-    levels = 1,
-    opts: { allowCheckpointLoss?: boolean } = {},
-  ): Promise<MasteryInfo & { spent: number }> {
-    return this.m.connection.call('mastery.spendPool', { skill: this.id, action, levels, ...opts });
   }
 }
 
@@ -291,6 +300,109 @@ export class Harvesting extends ActionSkill<VeinId> {
   }
 }
 
+/**
+ * Farming. Crops grow on their own while you do other things, so every call here is free: no
+ * cooldown, and it doesn't interrupt the action in progress. In the Scripted gamemode crops grow
+ * in their normal time ÷ farming speed (Mod Settings → Melvor Script), and they can still die:
+ * compost raises the odds.
+ *
+ *   await farming.harvestAll();
+ *   await farming.plantAll(Crops.Potatoes);
+ *   await farming.whenGrown();
+ */
+/** A farming plot, as `m.skills.farming.plots()` returns it: [`FarmingPlotInfo`](#farmingplotinfo) with typed ids. */
+export type FarmingPlot = Omit<FarmingPlotInfo, 'id' | 'category' | 'crop'> & {
+  id: FarmingPlotId;
+  category: FarmingCategoryId;
+  crop: CropId | null;
+};
+
+export class Farming extends MasterySkill<CropId> {
+  /** Every plot (or one kind, e.g. `FarmingCategories.Herb`): what's in it and when it's ready. */
+  plots(category?: FarmingCategoryId): Promise<FarmingPlot[]> {
+    return this.m.connection.call('farming.plots', { category }) as Promise<FarmingPlot[]>;
+  }
+
+  /** One plot. */
+  async plot(plot: FarmingPlotId): Promise<FarmingPlot> {
+    const found = (await this.plots()).find((p) => p.id === plot);
+    if (!found) throw new MelvorError('NOT_FOUND', `Unknown farming plot '${plot}'`);
+    return found;
+  }
+
+  /** Plant a crop in an empty plot. Compost goes on first, if you want it (see `compost`). */
+  plant(plot: FarmingPlotId, crop: CropId): Promise<PlantResult & { plot: FarmingPlot }> {
+    return this.m.connection.call('farming.plant', { plot, crop }) as Promise<PlantResult & { plot: FarmingPlot }>;
+  }
+
+  /** Plant a crop in every empty plot of its kind, until the seeds run out. */
+  plantAll(crop: CropId): Promise<{ planted: FarmingPlotId[]; seeds: number; xp: Record<string, number> }> {
+    return this.m.connection.call('farming.plantAll', { crop }) as Promise<{
+      planted: FarmingPlotId[];
+      seeds: number;
+      xp: Record<string, number>;
+    }>;
+  }
+
+  /** Harvest a grown plot, or clear a dead one. */
+  harvest(plot: FarmingPlotId): Promise<HarvestResult> {
+    return this.m.connection.call('farming.harvest', { plot });
+  }
+
+  /** Harvest every grown plot and clear every dead one (or only one kind of plot). */
+  harvestAll(category?: FarmingCategoryId): Promise<HarvestResult> {
+    return this.m.connection.call('farming.harvestAll', { category });
+  }
+
+  /**
+   * Put compost (`Items.Compost`, `Items.Weird_Gloop`...) on an empty plot, before planting.
+   * Without `quantity`, uses as much as fills it to 100%. Each % of compost adds 0.5% to the
+   * chance the crop grows; better compost also raises the harvest.
+   */
+  compost(plot: FarmingPlotId, item: ItemId, quantity?: number): Promise<{ used: number; level: number }> {
+    return this.m.connection.call('farming.compost', { plot, item, quantity: quantity ?? null });
+  }
+
+  /** Buy a locked plot (see its `level` and `unlockCosts`). */
+  unlockPlot(plot: FarmingPlotId): Promise<FarmingPlot> {
+    return this.m.connection.call('farming.unlockPlot', { plot }) as Promise<FarmingPlot>;
+  }
+
+  /** Dig up a growing crop. Its seeds and compost are lost. */
+  destroy(plot: FarmingPlotId): Promise<FarmingPlot> {
+    return this.m.connection.call('farming.destroy', { plot }) as Promise<FarmingPlot>;
+  }
+
+  /**
+   * Wait until at least one plot is grown or dead, and return those plots (at once if some
+   * already are). Rejects with NOT_READY when nothing is growing, or TIMEOUT after `timeoutMs`.
+   */
+  async whenGrown(opts: { timeoutMs?: number } = {}): Promise<FarmingPlot[]> {
+    const end = opts.timeoutMs !== undefined ? Date.now() + opts.timeoutMs : Infinity;
+    for (;;) {
+      // Listen before looking, so a crop finishing in between isn't missed.
+      let off = () => {};
+      const grown = new Promise<void>((resolve) => (off = this.m.on('cropsGrown', () => resolve())));
+      try {
+        const plots = await this.plots();
+        const done = plots.filter((p) => p.status === 'grown' || p.status === 'dead');
+        if (done.length > 0) return done;
+        const growing = plots.filter((p) => p.status === 'growing');
+        if (growing.length === 0) throw new MelvorError('NOT_READY', 'Nothing is growing: plant something first');
+        const left = end - Date.now();
+        if (left <= 0) throw new MelvorError('TIMEOUT', `No crop finished within ${opts.timeoutMs}ms`);
+        // The event is the signal; the timer is a fallback in case it was missed (a reconnect).
+        const soonest = Math.min(...growing.map((p) => p.readyInMs)) + 250;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        await Promise.race([grown, new Promise<void>((r) => (timer = setTimeout(r, Math.min(left, soonest))))]);
+        clearTimeout(timer);
+      } finally {
+        off();
+      }
+    }
+  }
+}
+
 export class Skills {
   readonly woodcutting: Woodcutting;
   readonly fishing: Fishing;
@@ -317,7 +429,8 @@ export class Skills {
   readonly ranged: Skill;
   readonly prayer: Skill;
   readonly slayer: Skill;
-  readonly farming: Skill;
+  /** Plots, planting, harvesting and compost. */
+  readonly farming: Farming;
   readonly township: Skill;
   readonly cartography: Skill;
   readonly corruption: Skill;
@@ -347,7 +460,7 @@ export class Skills {
     this.ranged = new Skill(m, 'melvorD:Ranged');
     this.prayer = new Skill(m, 'melvorD:Prayer');
     this.slayer = new Skill(m, 'melvorD:Slayer');
-    this.farming = new Skill(m, 'melvorD:Farming');
+    this.farming = new Farming(m, 'melvorD:Farming');
     this.township = new Skill(m, 'melvorD:Township');
     this.cartography = new Skill(m, 'melvorAoD:Cartography' as SkillId);
     this.corruption = new Skill(m, 'melvorItA:Corruption' as SkillId);
@@ -744,6 +857,11 @@ export class Melvor {
   /** Instant mode: cooldown = normal action time / speed. 1 in real-time mode. */
   get speed(): number {
     return this.state.meta.speed;
+  }
+
+  /** Instant mode: crops grow in their normal time / farmingSpeed. 1 in real-time mode. */
+  get farmingSpeed(): number {
+    return this.state.meta.farmingSpeed ?? 1;
   }
 
   /**

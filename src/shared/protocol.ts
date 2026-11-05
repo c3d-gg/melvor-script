@@ -170,6 +170,8 @@ export interface MetaState {
   instant: boolean;
   /** Instant mode: how many times faster than idle. Cooldown = normal interval / speed. */
   speed: number;
+  /** Instant mode: crops grow in their normal time / farmingSpeed. 1 in real-time mode. */
+  farmingSpeed?: number;
   gameVersion: string;
   runtimeVersion: string;
 }
@@ -344,6 +346,57 @@ export interface FightResult {
   readyInMs?: number;
 }
 
+// ---------------------------------------------------------------------------
+// Farming
+// ---------------------------------------------------------------------------
+
+export type FarmingPlotStatus = 'locked' | 'empty' | 'growing' | 'grown' | 'dead';
+
+export interface FarmingPlotInfo {
+  /** The plot's id, e.g. 'melvorD:AllotmentPlot1'. */
+  id: string;
+  /** Which crops it takes: 'melvorD:Allotment', 'melvorD:Herb', 'melvorD:Tree' or 'melvorItA:Special'. */
+  category: string;
+  /** 'locked' until you buy it, 'empty', 'growing', then 'grown' or 'dead'. */
+  status: FarmingPlotStatus;
+  /** The crop planted in it, or null. */
+  crop: string | null;
+  /** While growing: ms until it's done. 0 otherwise. */
+  readyInMs: number;
+  /** % chance the crop grows instead of dying: 50 + half the compost level, 100 with "crops can't die" bonuses. */
+  growthChance: number;
+  /** The compost on it and its level (0-100), or null. Compost goes on an empty plot, before planting. */
+  compost: { item: string; level: number } | null;
+  /** Farming level needed to unlock it. */
+  level: number;
+  /** Into the Abyss: abyssal level needed to unlock it (0 if none). */
+  abyssalLevel: number;
+  /** What unlocking it costs (empty once it's unlocked). */
+  unlockCosts: { currencies: QuantityInfo[]; items: QuantityInfo[] };
+}
+
+export interface PlantResult {
+  /** The plot after planting. */
+  plot: FarmingPlotInfo;
+  /** Seeds used. */
+  seeds: number;
+  /** skillId -> XP gained (allotments and herbs give XP when planted). */
+  xp: Record<string, number>;
+}
+
+export interface HarvestResult {
+  /** Plots harvested. */
+  harvested: string[];
+  /** Dead crops cleared away (no reward). */
+  died: string[];
+  /** itemId -> items gained. */
+  items: Record<string, number>;
+  /** skillId -> XP gained. */
+  xp: Record<string, number>;
+  /** Plots that couldn't be harvested because the bank is full. */
+  bankFull: string[];
+}
+
 export interface HelloResult {
   protocol: number;
   runtimeVersion: string;
@@ -360,6 +413,8 @@ export interface RuntimeInfo {
   scriptMode: boolean;
   instant: boolean;
   speed: number;
+  /** Instant mode: crops grow in their normal time / farmingSpeed. 1 in real-time mode. */
+  farmingSpeed?: number;
   clients: { id: number; name: string }[];
 }
 
@@ -372,6 +427,8 @@ export type GameEventMessage =
   | { type: 'masteryLevelUp'; skill: string; action: string; oldLevel: number; newLevel: number }
   | { type: 'monsterKilled'; monster: string }
   | { type: 'dungeonCompleted'; dungeon: string }
+  /** Farming plots finished growing: `grown` are ready to harvest, `died` need clearing (plot ids). */
+  | { type: 'cropsGrown'; grown: string[]; died: string[] }
   | { type: 'jobStarted'; job: JobInfo }
   | { type: 'jobFinished'; result: ActionResult }
   | { type: 'scriptMode'; enabled: boolean }
@@ -433,6 +490,21 @@ export interface Methods {
     { skill: string; action: string; levels?: number; allowCheckpointLoss?: boolean },
     MasteryInfo & { spent: number },
   ];
+
+  /** Every farming plot (or one category's). Free: farming calls never touch the action cooldown. */
+  'farming.plots': [{ category?: string }, FarmingPlotInfo[]];
+  'farming.plant': [{ plot: string; crop: string }, PlantResult];
+  /** Plant a crop in every empty plot of its category, until the seeds run out. */
+  'farming.plantAll': [{ crop: string }, { planted: string[]; seeds: number; xp: Record<string, number> }];
+  /** Harvest one plot (a dead crop is cleared). */
+  'farming.harvest': [{ plot: string }, HarvestResult];
+  /** Harvest every grown plot and clear every dead one (optionally one category). */
+  'farming.harvestAll': [{ category?: string }, HarvestResult];
+  /** quantity null = as much as fills the plot to 100%. */
+  'farming.compost': [{ plot: string; item: string; quantity: number | null }, { used: number; level: number }];
+  'farming.unlockPlot': [{ plot: string }, FarmingPlotInfo];
+  /** Dig up a growing crop (seeds and compost are lost). */
+  'farming.destroy': [{ plot: string }, FarmingPlotInfo];
 
   'data.item': [{ id: string }, ItemInfo];
   'data.items': [{ ids?: string[]; type?: string; category?: string }, ItemInfo[]];

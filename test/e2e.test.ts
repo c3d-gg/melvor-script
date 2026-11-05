@@ -11,7 +11,14 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import WebSocket from 'ws';
 import { createRuntime, type Runtime } from '../src/runtime/index.ts';
-import { connect, ActionStoppedError, MelvorError, type Melvor } from '../src/client/index.ts';
+import {
+  connect,
+  ActionStoppedError,
+  MelvorError,
+  type CropId,
+  type FarmingPlotId,
+  type Melvor,
+} from '../src/client/index.ts';
 import { FakeGame, MELVOR_REALM, fakeClasses } from './fake-game.ts';
 
 const TOKEN = 'x'.repeat(48);
@@ -411,5 +418,18 @@ describe('combat, bank, lifecycle', () => {
         assert.equal(Object.prototype.hasOwnProperty.call(s, k), false, `${s.id}.${k}`);
     }
     assert.equal(Object.prototype.hasOwnProperty.call(game.combat, 'stop'), false);
+    assert.equal(Object.prototype.hasOwnProperty.call(game.farming, 'growPlots'), false);
+  });
+});
+
+describe('farming (real-time)', () => {
+  it('crops grow in their normal time: farming speed is only for the Scripted gamemode', async () => {
+    const m = await client();
+    game.bank.addItem(game.items.getObjectByID('test:Potato_Seed')!, 3);
+    const { plot } = await m.skills.farming.plant('test:AllotmentPlot1' as FarmingPlotId, 'test:Potatoes' as CropId);
+    assert.equal(plot.status, 'growing');
+    assert.ok(Math.abs(plot.readyInMs - 20_000) <= 100, `readyInMs ${plot.readyInMs}`);
+    assert.equal(m.farmingSpeed, 1);
+    assert.equal(Object.prototype.hasOwnProperty.call(game.farming, 'plantPlot'), false); // left alone
   });
 });

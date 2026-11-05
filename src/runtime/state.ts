@@ -18,6 +18,8 @@ export interface StateContext {
   jobs(): ActionState['jobs'];
   /** Instant mode details (speed 1 / readyAt 0 in real-time mode). */
   clicks(): { instant: boolean; speed: number; readyAt: number; cooldownMs: number };
+  /** Instant mode: crops grow in their normal time / this (1 in real-time mode). */
+  farmingSpeed?(): number;
 }
 
 export function buildState(sc: StateContext): GameState {
@@ -30,6 +32,7 @@ export function buildState(sc: StateContext): GameState {
       scriptMode: sc.scriptMode(),
       instant: clicks.instant,
       speed: clicks.speed,
+      farmingSpeed: sc.farmingSpeed?.() ?? 1,
       gameVersion: sc.env.gameVersion ?? safe(() => String(game.lastLoadedGameVersion), ''),
       runtimeVersion: RUNTIME_VERSION,
     },

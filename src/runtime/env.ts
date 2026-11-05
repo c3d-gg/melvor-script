@@ -36,7 +36,7 @@ export interface FullNodeDeps extends NodeDeps {
 }
 
 /** Names of the in-game settings the bootstrap registers (Mod Settings → Melvor Script). */
-export type SettingName = 'speed' | 'allowEval';
+export type SettingName = 'speed' | 'farmingSpeed' | 'allowEval';
 
 /**
  * The mod's in-game settings, registered once per page by mod/setup.mjs. Melvor saves mod
@@ -76,6 +76,8 @@ export interface RuntimeEnv {
     rateLimit?: { perSecond: number; burst: number };
     /** Instant-mode speed, overriding the config file. */
     speed?: number;
+    /** Instant-mode farming speed, overriding the config file. */
+    farmingSpeed?: number;
   };
 }
 

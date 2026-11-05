@@ -101,6 +101,19 @@ function addSettings(ctx, changed) {
         changed('speed', value);
       },
     });
+    scripted.add({
+      type: 'number',
+      name: 'farmingSpeed',
+      label: 'Farming speed',
+      hint: 'Crops grow in their normal time ÷ farming speed (for crops planted after a change). 1 to 1000 (default 10).',
+      default: 10,
+      min: 1,
+      max: 1000,
+      onChange: (value) => {
+        if (!Number.isFinite(value) || value < 1 || value > 1000) return 'Enter a number from 1 to 1000';
+        changed('farmingSpeed', value);
+      },
+    });
     const dev = ctx.settings.section('Developer');
     dev.add({
       type: 'switch',
@@ -110,7 +123,7 @@ function addSettings(ctx, changed) {
       default: false,
       onChange: (value) => changed('allowEval', value),
     });
-    const sectionOf = { speed: scripted, allowEval: dev };
+    const sectionOf = { speed: scripted, farmingSpeed: scripted, allowEval: dev };
     return {
       get: (name) => sectionOf[name].get(name),
       set: (name, value) => sectionOf[name].set(name, value),

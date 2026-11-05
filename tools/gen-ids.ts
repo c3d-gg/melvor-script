@@ -50,6 +50,7 @@ const ACTION_KEYS: Record<string, string> = {
   'melvorD:Magic': 'altSpells',
   'melvorAoD:Archaeology': 'digSites',
   'melvorItA:Harvesting': 'veinData',
+  'melvorD:Farming': 'recipes',
 };
 
 async function main() {
@@ -90,6 +91,10 @@ async function main() {
     for (const block of d.skillData ?? []) {
       const skillId: string = block.skillID;
       push('skills', { id: skillId, name: skillId.split(':')[1] });
+      if (skillId === 'melvorD:Farming') {
+        for (const p of block.data?.plots ?? []) push('farmingPlots', { id: full(ns, p.id) });
+        for (const c of block.data?.categories ?? []) push('farmingCategories', { id: full(ns, c.id), name: c.name });
+      }
       const actionKey = ACTION_KEYS[skillId];
       if (!actionKey) continue;
       for (const a of block.data?.[actionKey] ?? []) {

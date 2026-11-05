@@ -16,10 +16,17 @@ import { CombatController, registerCombat } from './api/combat.ts';
 import type { ApiContext } from './api/context.ts';
 import { registerData } from './api/data.ts';
 import { registerDebug } from './api/debug.ts';
+import { FarmingController, registerFarming } from './api/farming.ts';
 import { registerMastery } from './api/mastery.ts';
 import { registerPlayer } from './api/player.ts';
 import { ClickController } from './clicks.ts';
-import { configuredSpeed, loadOrCreateConfig, updateConfig, type ConnectionConfig } from './config.ts';
+import {
+  configuredFarmingSpeed,
+  configuredSpeed,
+  loadOrCreateConfig,
+  updateConfig,
+  type ConnectionConfig,
+} from './config.ts';
 import { RpcError, safe, type GameObject, type RuntimeEnv, type SettingName } from './env.ts';
 import { Hud } from './hud.ts';
 import { allObjects } from './lookup.ts';
@@ -46,6 +53,7 @@ export interface Runtime {
   readonly actions: ActionController;
   readonly clicks: ClickController;
   readonly combat: CombatController;
+  readonly farming: FarmingController;
   readonly config: ConnectionConfig | null;
 }
 
@@ -108,6 +116,9 @@ export function createRuntime(env: RuntimeEnv): Runtime {
     },
   });
   const combat = new CombatController(env);
+  const farming = new FarmingController(env, {
+    onCropsGrown: (grown, died) => emit({ type: 'cropsGrown', grown, died }),
+  });
   let flushQueued = false;
   const clicks = new ClickController(env, combat, {
     onJobStarted: (job) => {
@@ -151,6 +162,7 @@ export function createRuntime(env: RuntimeEnv): Runtime {
       readyAt: clicks.readyAt,
       cooldownMs: clicks.lastCooldownMs,
     }),
+    farmingSpeed: () => (farming.scaled ? farming.speed : 1),
   };
 
   // ---------------------------------------------------------------------------
@@ -211,7 +223,9 @@ export function createRuntime(env: RuntimeEnv): Runtime {
       return;
     }
     const clients = [...rpc.sessions].filter((s) => s.helloDone).map((s) => s.name);
-    const mode = clicks.enabled ? `instant actions, cooldown = normal time ÷ ${clicks.speed}` : 'real-time actions';
+    const mode = clicks.enabled
+      ? `instant actions, cooldown = normal time ÷ ${clicks.speed}, crops grow ÷ ${farming.speed}`
+      : 'real-time actions';
     hud.setStatus(
       `listening on ws://${server.address}  ·  ${mode}\n${clients.length ? `connected: ${clients.join(', ')}` : 'no scripts connected'}  ·  runtime ${env.runtimeSource}`,
       clients.length ? 'on' : 'off',
@@ -224,12 +238,21 @@ export function createRuntime(env: RuntimeEnv): Runtime {
 
   /** Show the config.json values in the settings window (Melvor's own saved copy may be stale or missing). */
   function showSettings() {
-    if (!env.settings || !config) return;
-    try {
-      env.settings.set('speed', configuredSpeed(config));
-      env.settings.set('allowEval', config.allowEval === true);
-    } catch (e) {
-      log('warn', `couldn't show settings: ${e instanceof Error ? e.message : e}`, 'runtime');
+    const settings = env.settings;
+    if (!settings || !config) return;
+    const values: [SettingName, unknown][] = [
+      ['speed', configuredSpeed(config)],
+      ['farmingSpeed', configuredFarmingSpeed(config)],
+      ['allowEval', config.allowEval === true],
+    ];
+    for (const [name, value] of values) {
+      try {
+        settings.set(name, value);
+      } catch (e) {
+        // An older mod bootstrap (setup.mjs) doesn't have the newer settings: config.json still works.
+        if (name === 'speed' || name === 'allowEval')
+          log('warn', `couldn't show the ${name} setting: ${e instanceof Error ? e.message : e}`, 'runtime');
+      }
     }
   }
 
@@ -246,6 +269,19 @@ export function createRuntime(env: RuntimeEnv): Runtime {
         updateStatus();
         flushState();
         log('info', `speed ${speed}: each action is followed by a cooldown of its normal time ÷ ${speed}`, 'runtime');
+      } else if (name === 'farmingSpeed') {
+        const farmingSpeed = configuredFarmingSpeed({ ...config, farmingSpeed: Number(value) });
+        if (farmingSpeed === configuredFarmingSpeed(config)) return;
+        config = updateConfig(env.node, { farmingSpeed }, env.configPath);
+        if (!farming.scaled) return; // only the Scripted gamemode speeds crops up
+        farming.speed = farmingSpeed;
+        updateStatus();
+        flushState();
+        log(
+          'info',
+          `farming speed ${farmingSpeed}: crops planted from now on grow in their normal time ÷ ${farmingSpeed}`,
+          'runtime',
+        );
       } else if (name === 'allowEval') {
         const allow = value === true;
         if (allow === (config.allowEval === true)) return;
@@ -300,6 +336,7 @@ export function createRuntime(env: RuntimeEnv): Runtime {
       scriptMode: scriptModeOn(),
       instant: clicks.enabled,
       speed: clicks.enabled ? clicks.speed : 1,
+      farmingSpeed: farming.scaled ? farming.speed : 1,
       clients: [...rpc.sessions].filter((s) => s.helloDone).map((s) => ({ id: s.id, name: s.name })),
     };
   }
@@ -401,6 +438,7 @@ export function createRuntime(env: RuntimeEnv): Runtime {
   registerPlayer(api);
   registerData(api);
   registerMastery(api);
+  registerFarming(api);
   registerDebug(api);
 
   // ---------------------------------------------------------------------------
@@ -422,12 +460,15 @@ export function createRuntime(env: RuntimeEnv): Runtime {
     }
 
     // Instant-action gamemodes (Scripted) get the click engine; everything else real-time jobs.
-    if (ClickController.applies(game)) {
+    const instant = ClickController.applies(game);
+    if (instant) {
       clicks.speed = env.timing?.speed ?? configuredSpeed(config);
       clicks.install();
     } else {
       actions.install();
     }
+    farming.speed = env.timing?.farmingSpeed ?? configuredFarmingSpeed(config);
+    farming.install(instant);
     combat.install();
     forwardGameEvents();
 
@@ -512,6 +553,7 @@ export function createRuntime(env: RuntimeEnv): Runtime {
     rpc.closeAll('runtime unloading');
     actions.dispose();
     clicks.dispose();
+    farming.dispose();
     combat.dispose();
     for (const r of restorers.splice(0).reverse()) r();
     const proc = env.node?.process;
@@ -532,6 +574,7 @@ export function createRuntime(env: RuntimeEnv): Runtime {
     actions,
     clicks,
     combat,
+    farming,
     get config() {
       return config;
     },

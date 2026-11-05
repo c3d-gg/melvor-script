@@ -5,7 +5,7 @@ import { allObjects, resolveIn, resolveItem } from '../lookup.ts';
 import { num, type ApiContext } from './context.ts';
 
 /** Run `fn` while recording bank changes; returns item id -> net delta. */
-function captureBank(game: GameObject, fn: () => void): Record<string, number> {
+export function captureBank(game: GameObject, fn: () => void): Record<string, number> {
   const delta: Record<string, number> = {};
   const onItem = (e: GameObject) => {
     if (e?.item) delta[e.item.id] = (delta[e.item.id] ?? 0) + (e.newQuantity ?? 0) - (e.oldQuantity ?? 0);

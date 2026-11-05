@@ -36,6 +36,9 @@ function actionInfo(env: RuntimeEnv, skill: GameObject, a: GameObject): ActionIn
   const costs = quantities(safe(() => a.itemCosts, []));
   if (logs?.id && !Array.isArray(logs) && localSkillId(skill) === 'Firemaking')
     costs.push({ id: logs.id, quantity: 1 });
+  // Farming: the seeds a planting takes (before seed-cost bonuses).
+  const seeds = safe(() => a.seedCost, undefined as GameObject);
+  if (seeds?.item?.id) costs.push({ id: seeds.item.id, quantity: seeds.quantity ?? 1 });
 
   let group: string | null = null;
   if (localSkillId(skill) === 'Fishing')
@@ -146,6 +149,8 @@ export function registerData(api: ApiContext) {
       foods: allObjects(g.items)
         .filter((i) => typeof i.healsFor === 'number')
         .map(entry),
+      farmingPlots: ids(safe(() => g.farming.plots, undefined)).map((e) => ({ id: e.id })),
+      farmingCategories: ids(safe(() => g.farming.categories, undefined)),
     };
     for (const skill of allObjects(g.skills)) {
       if (skill.actions) out[`actions:${skill.id}`] = ids(skill.actions);

@@ -14,8 +14,16 @@ import * as path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRuntime, type Runtime } from '../src/runtime/index.ts';
 import type { SettingsBridge } from '../src/runtime/env.ts';
-import { connect, ActionStoppedError, MelvorError, type Melvor } from '../src/client/index.ts';
-import { Action, FakeGame, fakeClasses } from './fake-game.ts';
+import {
+  connect,
+  ActionStoppedError,
+  MelvorError,
+  type CropId,
+  type FarmingPlotId,
+  type ItemId,
+  type Melvor,
+} from '../src/client/index.ts';
+import { Action, FakeGame, PLOT, fakeClasses } from './fake-game.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TOKEN = 'y'.repeat(48);
@@ -456,5 +464,146 @@ describe('realms', () => {
 
     realm.isUnlocked = true;
     assert.equal((await wc.actions(true)).find((a) => a.id === 'test:Starwood')?.unlocked, true);
+  });
+});
+
+describe('farming', () => {
+  const P1 = 'test:AllotmentPlot1' as FarmingPlotId;
+  const P2 = 'test:AllotmentPlot2' as FarmingPlotId;
+  const P3 = 'test:AllotmentPlot3' as FarmingPlotId;
+  const TREE = 'test:TreePlot1' as FarmingPlotId;
+  const POTATOES = 'test:Potatoes' as CropId;
+  const COMPOST = 'test:Compost' as ItemId;
+  const seeds = () => game.bank.getQty(item('test:Potato_Seed'));
+  const give = (id: string, n: number) => game.bank.addItem(item(id), n);
+  const code = (c: string, re?: RegExp) => (e: MelvorError) => e.code === c && (!re || re.test(e.message));
+
+  it('crops grow on their own timer (growth time ÷ farming speed), alongside actions, and cost no cooldown', async () => {
+    const m = await client();
+    const farming = m.skills.farming;
+    give('test:Potato_Seed', 10);
+    const grown = m.once('cropsGrown', undefined, 3000);
+
+    const planted = await farming.plant(P1, POTATOES);
+    // Growing, not grown on the spot as the game's own instant mode would have it.
+    assert.equal(planted.plot.status, 'growing');
+    assert.ok(Math.abs(planted.plot.readyInMs - 2000) <= 100, `readyInMs ${planted.plot.readyInMs}`); // 20s ÷ 10
+    assert.equal(planted.seeds, 3);
+    assert.deepEqual(planted.xp, { 'test:Farming': 8 }); // allotments give XP when planted
+    assert.equal(seeds(), 7);
+    assert.ok(m.ready);
+    assert.equal(m.farmingSpeed, 10);
+
+    await assert.rejects(farming.harvest(P1), code('NOT_READY', /still growing/));
+    await m.skills.get('test:Woodcutting').act('test:Oak'); // actions carry on while it grows
+
+    const done = await farming.whenGrown({ timeoutMs: 3000 });
+    assert.deepEqual(
+      done.map((p) => [p.id, p.status]),
+      [[P1, 'grown']],
+    );
+    assert.deepEqual((await grown).grown, [P1]);
+
+    const h = await farming.harvest(P1);
+    assert.deepEqual(h.harvested, [P1]);
+    assert.deepEqual(h.items, { 'test:Potato': 2 });
+    assert.deepEqual(h.xp, { 'test:Farming': 16 });
+    assert.equal((await farming.plot(P1)).status, 'empty');
+  });
+
+  it('crops can still die; compost raises the odds; harvestAll clears the dead ones', async () => {
+    const m = await client();
+    const farming = m.skills.farming;
+    game.farming.rng = () => 60; // dies at the base 50%, grows with compost
+    give('test:Potato_Seed', 6);
+    give('test:Compost', 10);
+    await assert.rejects(farming.compost(P1, 'test:Potato_Seed' as ItemId), code('BAD_REQUEST', /isn't compost/));
+    assert.deepEqual(await farming.compost(P1, COMPOST), { used: 5, level: 100 }); // fills it: 5 x 20%
+    assert.equal((await farming.plot(P1)).growthChance, 100);
+    await assert.rejects(farming.compost(P1, COMPOST), code('FAILED', /already fully composted/));
+
+    assert.deepEqual((await farming.plantAll(POTATOES)).planted, [P1, P2]); // P3 is locked
+    await assert.rejects(farming.compost(P1, COMPOST), code('NOT_READY'));
+    await farming.whenGrown({ timeoutMs: 3000 });
+    await until(() => game.farming.growthTimers.size === 0);
+    const h = await farming.harvestAll();
+    assert.deepEqual(h.harvested, [P1]);
+    assert.deepEqual(h.died, [P2]);
+    assert.deepEqual(h.items, { 'test:Potato': 2 });
+    await assert.rejects(farming.whenGrown(), code('NOT_READY', /Nothing is growing/));
+  });
+
+  it("refuses what the game wouldn't allow, and says why", async () => {
+    const m = await client();
+    const farming = m.skills.farming;
+    await assert.rejects(farming.plant(P1, POTATOES), code('MISSING_ITEMS', /takes 3 x Potato Seeds/));
+    give('test:Potato_Seed', 3);
+    await assert.rejects(farming.plant(TREE, POTATOES), code('BAD_REQUEST', /grows in Allotments/));
+    await assert.rejects(farming.plant(P3, POTATOES), code('LOCKED', /unlock it first/));
+    await assert.rejects(farming.plant(P1, 'test:Carrots' as CropId), code('LOCKED', /level 30/));
+    await assert.rejects(farming.plant('test:Nowhere' as FarmingPlotId, POTATOES), code('NOT_FOUND'));
+    await farming.plant(P1, POTATOES);
+    give('test:Potato_Seed', 3);
+    await assert.rejects(farming.plant(P1, POTATOES), code('NOT_READY', /already has Potatoes/));
+    await assert.rejects(farming.harvest(P2), code('NOT_READY', /nothing to harvest/));
+  });
+
+  it('unlockPlot pays for a plot; destroy digs up a growing crop', async () => {
+    const m = await client();
+    const farming = m.skills.farming;
+    const locked = await farming.plot(P3);
+    assert.equal(locked.status, 'locked');
+    assert.deepEqual(locked.unlockCosts.currencies, [{ id: 'melvorD:GP', quantity: 500 }]);
+    await assert.rejects(farming.unlockPlot(P3), code('MISSING_ITEMS'));
+    game.gp.add(600);
+    assert.equal((await farming.unlockPlot(P3)).status, 'empty');
+    assert.equal(game.gp.amount, 100);
+
+    give('test:Potato_Seed', 3);
+    await farming.plant(P3, POTATOES);
+    assert.equal((await farming.destroy(P3)).status, 'empty');
+    assert.equal(game.farming.growthTimers.size, 0);
+    await assert.rejects(farming.destroy(P3), code('NOT_READY'));
+  });
+
+  it('Farming speed is a setting: shown, saved to config.json, used for crops planted afterwards', async () => {
+    await rt.dispose();
+    const shown = new Map<string, unknown>();
+    rt = makeRuntime(game, { settings: { get: (n) => shown.get(n), set: (n, v) => void shown.set(n, v) } });
+    await rt.start();
+    assert.equal(shown.get('farmingSpeed'), 10);
+    const m = await client();
+    rt.settingChanged('farmingSpeed', 20);
+    assert.equal(JSON.parse(fs.readFileSync(configPath, 'utf8')).farmingSpeed, 20);
+    await m.waitFor((s) => s.meta.farmingSpeed === 20, { timeoutMs: 1000 });
+    give('test:Potato_Seed', 3);
+    const { plot } = await m.skills.farming.plant(P1, POTATOES);
+    assert.ok(Math.abs(plot.readyInMs - 1000) <= 100, `readyInMs ${plot.readyInMs}`); // 20s ÷ 20
+  });
+
+  it("repairs plots the game's own instant mode left behind before the runtime took over", async () => {
+    await rt.dispose();
+    const f = game.farming;
+    give('test:Potato_Seed', 9);
+    const p1 = f.plots.getObjectByID(P1)!;
+    const p2 = f.plots.getObjectByID(P2)!;
+    const potatoes = f.actions.getObjectByID(POTATOES)!;
+    // Unpatched instant mode: planted = grown on the spot, while the growth timer still runs.
+    f.plantRecipe(potatoes, p1);
+    f.plantRecipe(potatoes, p2);
+    assert.equal(p1.state, PLOT.Grown);
+    f.harvestPlot(p2); // harvested at once: empty, but still in its timer
+    const old = [...f.growthTimers];
+    rt = makeRuntime(game);
+    await rt.start();
+    assert.equal(p1.state, PLOT.Growing); // its timer decides how it turns out
+    assert.equal(p2.state, PLOT.Empty);
+    assert.ok(
+      old.every((t) => !t.plots.includes(p2)),
+      'p2 left its old timer',
+    );
+    const m = await client();
+    await m.skills.farming.plant(P2, POTATOES);
+    assert.equal(p2.state, PLOT.Growing);
   });
 });

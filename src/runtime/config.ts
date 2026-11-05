@@ -17,6 +17,11 @@ export interface ConnectionConfig {
    */
   speed?: number;
   /**
+   * Instant mode (Scripted gamemode): crops grow in their normal time / farmingSpeed.
+   * Set in game: Mod Settings → Melvor Script.
+   */
+  farmingSpeed?: number;
+  /**
    * Let clients run arbitrary JavaScript in the game (`debug.eval`, used by `bun run melvor eval`
    * and the REPL). Off unless turned on in Mod Settings → Melvor Script.
    */
@@ -25,10 +30,19 @@ export interface ConnectionConfig {
 
 export const DEFAULT_CONFIG_SPEED = 10;
 
+/** A speed setting clamped to something sane (1 to 1000), or the default. */
+function clampSpeed(s: unknown): number {
+  return typeof s === 'number' && Number.isFinite(s) ? Math.min(1000, Math.max(1, s)) : DEFAULT_CONFIG_SPEED;
+}
+
 /** The configured speed, clamped to something sane. */
 export function configuredSpeed(config: ConnectionConfig | null): number {
-  const s = config?.speed;
-  return typeof s === 'number' && Number.isFinite(s) ? Math.min(1000, Math.max(1, s)) : DEFAULT_CONFIG_SPEED;
+  return clampSpeed(config?.speed);
+}
+
+/** The configured farming speed, clamped like `speed`. */
+export function configuredFarmingSpeed(config: ConnectionConfig | null): number {
+  return clampSpeed(config?.farmingSpeed);
 }
 
 export function defaultConfigPath(node: FullNodeDeps) {
@@ -52,6 +66,7 @@ export function loadOrCreateConfig(node: FullNodeDeps, configPath = defaultConfi
         ? existing.token
         : crypto.randomBytes(24).toString('hex'),
     speed: typeof existing.speed === 'number' ? existing.speed : DEFAULT_CONFIG_SPEED,
+    farmingSpeed: typeof existing.farmingSpeed === 'number' ? existing.farmingSpeed : DEFAULT_CONFIG_SPEED,
     allowEval: existing.allowEval === true,
   };
   if (JSON.stringify(config) !== JSON.stringify(existing)) {

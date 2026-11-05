@@ -3,7 +3,7 @@
 Everything a script can do. `m` is the object your `run` callback gets (or that `await connect()` returns).
 
 - **Reads are synchronous.** `m.state` mirrors the game: it's pushed several times a second and refreshed before every call returns. `m.bank.count(...)`, `m.skills.woodcutting.level` and friends read from it.
-- **Actions are async and paced.** Skill actions and combat (`attack`, `fight`, `dungeon`) resolve when you may act again. Calling one while `!m.ready` rejects at once with `COOLDOWN` or `BUSY`. Everything else (bank, shop, eating, equipment, mastery spending, data lookups) is free.
+- **Actions are async and paced.** Skill actions and combat (`attack`, `fight`, `dungeon`) resolve when you may act again. Calling one while `!m.ready` rejects at once with `COOLDOWN` or `BUSY`. Everything else (bank, shop, eating, equipment, farming, mastery spending, data lookups) is free.
 - **Ids are typed.** `Items.Oak_Logs`, `Trees.Oak`, `Monsters.Chicken` ... a typo fails at compile time. See [Ids](#ids).
 
 This page is generated from the source by `bun run docs`. The descriptions are the doc comments VS Code shows on hover.
@@ -55,6 +55,8 @@ Sub-APIs: [`m.skills`](#mskills), [`m.bank`](#mbank), [`m.player`](#mplayer), [`
   a cooldown of (their normal time / `speed`). False in real-time mode.
 - **`speed: number`**
   Instant mode: cooldown = normal action time / speed. 1 in real-time mode.
+- **`farmingSpeed: number`**
+  Instant mode: crops grow in their normal time / farmingSpeed. 1 in real-time mode.
 - **`ready: boolean`**
   True when you can act right now: no action running and no cooldown left.
   The Adventure Land-style check for a `setInterval` loop:
@@ -141,7 +143,33 @@ Each returns a [`Promise<ActionResult>`](#actionresult) that resolves when you m
 | `m.skills.archaeology`  | `excavate(digSite: DigSiteId, opts?: ActOptions): Promise<ActionResult>`                                            | Excavate a dig site. Pick its map and tools in the game UI first.                         |
 | `m.skills.harvesting`   | `harvest(vein: VeinId, opts?: ActOptions): Promise<ActionResult>`                                                   | Harvest a vein (Into the Abyss).                                                          |
 
-Level and XP only (no scripted actions yet): `attack`, `strength`, `defence`, `hitpoints`, `ranged`, `prayer`, `slayer`, `farming`, `township`, `cartography`, `corruption`.
+Level and XP only (no scripted actions yet): `attack`, `strength`, `defence`, `hitpoints`, `ranged`, `prayer`, `slayer`, `township`, `cartography`, `corruption`.
+
+### m.skills.farming
+
+- **`plots(category?: FarmingCategoryId): Promise<FarmingPlot[]>`**
+  Every plot (or one kind, e.g. `FarmingCategories.Herb`): what's in it and when it's ready.
+- **`plot(plot: FarmingPlotId): Promise<FarmingPlot>`**
+  One plot.
+- **`plant(plot: FarmingPlotId, crop: CropId): Promise<PlantResult & { plot: FarmingPlot }>`**
+  Plant a crop in an empty plot. Compost goes on first, if you want it (see `compost`).
+- **`plantAll(crop: CropId): Promise<{ planted: FarmingPlotId[]; seeds: number; xp: Record<string, number> }>`**
+  Plant a crop in every empty plot of its kind, until the seeds run out.
+- **`harvest(plot: FarmingPlotId): Promise<HarvestResult>`**
+  Harvest a grown plot, or clear a dead one.
+- **`harvestAll(category?: FarmingCategoryId): Promise<HarvestResult>`**
+  Harvest every grown plot and clear every dead one (or only one kind of plot).
+- **`compost(plot: FarmingPlotId, item: ItemId, quantity?: number): Promise<{ used: number; level: number }>`**
+  Put compost (`Items.Compost`, `Items.Weird_Gloop`...) on an empty plot, before planting.
+  Without `quantity`, uses as much as fills it to 100%. Each % of compost adds 0.5% to the
+  chance the crop grows; better compost also raises the harvest.
+- **`unlockPlot(plot: FarmingPlotId): Promise<FarmingPlot>`**
+  Buy a locked plot (see its `level` and `unlockCosts`).
+- **`destroy(plot: FarmingPlotId): Promise<FarmingPlot>`**
+  Dig up a growing crop. Its seeds and compost are lost.
+- **`whenGrown(opts: { timeoutMs?: number } = {}): Promise<FarmingPlot[]>`**
+  Wait until at least one plot is grown or dead, and return those plots (at once if some
+  already are). Rejects with NOT_READY when nothing is growing, or TIMEOUT after `timeoutMs`.
 
 ### Every skill
 
@@ -190,6 +218,11 @@ On every skill in the actions table, plus `m.skills.get(id)`. `T` is that skill'
   Check whether an action could start right now (level, requirements, materials).
 - **`busy: boolean`**
   True while a script job for this skill is running.
+
+### Mastery
+
+On every skill with actions, and on `m.skills.farming` (`T` is `CropId` there).
+
 - **`mastery(action: T): Promise<MasteryInfo>`**
   One action's mastery: level (1 to 99), XP, and XP to the next level.
 - **`masteries(): Promise<Record<T, MasteryInfo>>`**
@@ -480,17 +513,51 @@ One combat click (instant mode): you act, then the enemy acts.
 | `buyLimit` | `number`                                                |     |
 | `unlocked` | `boolean`                                               |     |
 
+### `FarmingPlotInfo`
+
+| Field          | Type                                                    |                                                                                                            |
+| -------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `id`           | `string`                                                | The plot's id, e.g. 'melvorD:AllotmentPlot1'.                                                              |
+| `category`     | `string`                                                | Which crops it takes: 'melvorD:Allotment', 'melvorD:Herb', 'melvorD:Tree' or 'melvorItA:Special'.          |
+| `status`       | `FarmingPlotStatus`                                     | 'locked' until you buy it, 'empty', 'growing', then 'grown' or 'dead'.                                     |
+| `crop`         | `string \| null`                                        | The crop planted in it, or null.                                                                           |
+| `readyInMs`    | `number`                                                | While growing: ms until it's done. 0 otherwise.                                                            |
+| `growthChance` | `number`                                                | % chance the crop grows instead of dying: 50 + half the compost level, 100 with "crops can't die" bonuses. |
+| `compost`      | `{ item: string; level: number } \| null`               | The compost on it and its level (0-100), or null. Compost goes on an empty plot, before planting.          |
+| `level`        | `number`                                                | Farming level needed to unlock it.                                                                         |
+| `abyssalLevel` | `number`                                                | Into the Abyss: abyssal level needed to unlock it (0 if none).                                             |
+| `unlockCosts`  | `{ currencies: QuantityInfo[]; items: QuantityInfo[] }` | What unlocking it costs (empty once it's unlocked).                                                        |
+
+### `PlantResult`
+
+| Field   | Type                     |                                                                   |
+| ------- | ------------------------ | ----------------------------------------------------------------- |
+| `plot`  | `FarmingPlotInfo`        | The plot after planting.                                          |
+| `seeds` | `number`                 | Seeds used.                                                       |
+| `xp`    | `Record<string, number>` | skillId -> XP gained (allotments and herbs give XP when planted). |
+
+### `HarvestResult`
+
+| Field       | Type                     |                                                            |
+| ----------- | ------------------------ | ---------------------------------------------------------- |
+| `harvested` | `string[]`               | Plots harvested.                                           |
+| `died`      | `string[]`               | Dead crops cleared away (no reward).                       |
+| `items`     | `Record<string, number>` | itemId -> items gained.                                    |
+| `xp`        | `Record<string, number>` | skillId -> XP gained.                                      |
+| `bankFull`  | `string[]`               | Plots that couldn't be harvested because the bank is full. |
+
 ### `RuntimeInfo`
 
-| Field            | Type                             |     |
-| ---------------- | -------------------------------- | --- |
-| `protocol`       | `number`                         |     |
-| `runtimeVersion` | `string`                         |     |
-| `runtimeSource`  | `string`                         |     |
-| `scriptMode`     | `boolean`                        |     |
-| `instant`        | `boolean`                        |     |
-| `speed`          | `number`                         |     |
-| `clients`        | `{ id: number; name: string }[]` |     |
+| Field            | Type                             |                                                                                    |
+| ---------------- | -------------------------------- | ---------------------------------------------------------------------------------- |
+| `protocol`       | `number`                         |                                                                                    |
+| `runtimeVersion` | `string`                         |                                                                                    |
+| `runtimeSource`  | `string`                         |                                                                                    |
+| `scriptMode`     | `boolean`                        |                                                                                    |
+| `instant`        | `boolean`                        |                                                                                    |
+| `speed`          | `number`                         |                                                                                    |
+| `farmingSpeed?`  | `number`                         | Instant mode: crops grow in their normal time / farmingSpeed. 1 in real-time mode. |
+| `clients`        | `{ id: number; name: string }[]` |                                                                                    |
 
 ## m.state
 
@@ -518,6 +585,7 @@ The live mirror behind every synchronous read. Most scripts use the getters abov
 | `scriptMode`     | `boolean` |                                                                                                                                                               |
 | `instant`        | `boolean` | Instant actions (the Scripted gamemode): every action happens the moment it's issued, then a cooldown of (its normal time / `speed`) applies to the next one. |
 | `speed`          | `number`  | Instant mode: how many times faster than idle. Cooldown = normal interval / speed.                                                                            |
+| `farmingSpeed?`  | `number`  | Instant mode: crops grow in their normal time / farmingSpeed. 1 in real-time mode.                                                                            |
 | `gameVersion`    | `string`  |                                                                                                                                                               |
 | `runtimeVersion` | `string`  |                                                                                                                                                               |
 
@@ -597,6 +665,7 @@ Subscribe with `m.on(type, handler)` (returns an unsubscribe function) or wait f
 | `masteryLevelUp`   | `{ skill: string; action: string; oldLevel: number; newLevel: number }` |
 | `monsterKilled`    | `{ monster: string }`                                                   |
 | `dungeonCompleted` | `{ dungeon: string }`                                                   |
+| `cropsGrown`       | `{ grown: string[]; died: string[] }`                                   |
 | `jobStarted`       | `{ job: JobInfo }`                                                      |
 | `jobFinished`      | `{ result: ActionResult }`                                              |
 | `scriptMode`       | `{ enabled: boolean }`                                                  |
@@ -635,32 +704,35 @@ Failed calls reject with a `MelvorError`. Its `code` says why:
 
 Const maps of every id in the game, from `import { Items, Trees, ... } from 'melvor-script'`. Each has a matching type (`ItemId`, `TreeId`, ...). They're generated from the game data; `bunx melvor gen-types` regenerates them from your running game, modded content included.
 
-| Map                   | Ids  | Example                                 |                                                               |
-| --------------------- | ---- | --------------------------------------- | ------------------------------------------------------------- |
-| `Items`               | 3748 | `Items.Normal_Logs`                     | Every item in the game.                                       |
-| `Foods`               | 208  | `Foods.Shrimp`                          | Items that heal when eaten.                                   |
-| `SkillIds`            | 28   | `SkillIds.Woodcutting`                  | Skills.                                                       |
-| `Monsters`            | 377  | `Monsters.BlackKnight`                  | Monsters.                                                     |
-| `CombatAreas`         | 118  | `CombatAreas.Farmlands`                 | Combat areas, slayer areas, dungeons, strongholds and depths. |
-| `Dungeons`            | 40   | `Dungeons.Chicken_Coop`                 | Dungeons (including Abyss depths).                            |
-| `ShopPurchases`       | 434  | `ShopPurchases.Extra_Bank_Slot`         | Shop purchases.                                               |
-| `Prayers`             | 87   | `Prayers.Thick_Skin`                    | Prayers.                                                      |
-| `AttackStyles`        | 8    | `AttackStyles.Stab`                     | Attack styles.                                                |
-| `EquipmentSlots`      | 19   | `EquipmentSlots.Helmet`                 | Equipment slots.                                              |
-| `Trees`               | 34   | `Trees.Normal`                          | Woodcutting trees.                                            |
-| `Fish`                | 59   | `Fish.Raw_Shrimp`                       | Fishing: fish.                                                |
-| `Rocks`               | 40   | `Rocks.Rune_Essence`                    | Mining rocks.                                                 |
-| `ThievingNpcs`        | 50   | `ThievingNpcs.MAN`                      | Thieving NPCs.                                                |
-| `FiremakingLogs`      | 33   | `FiremakingLogs.Normal_Logs`            | Firemaking: logs you can burn.                                |
-| `CookingRecipes`      | 86   | `CookingRecipes.Shrimp`                 | Cooking recipes.                                              |
-| `SmithingRecipes`     | 279  | `SmithingRecipes.Bronze_Bar`            | Smithing recipes.                                             |
-| `FletchingRecipes`    | 132  | `FletchingRecipes.Arrow_Shafts`         | Fletching recipes.                                            |
-| `CraftingRecipes`     | 187  | `CraftingRecipes.Leather_Gloves`        | Crafting recipes.                                             |
-| `RunecraftingRecipes` | 229  | `RunecraftingRecipes.Air_Rune`          | Runecrafting recipes.                                         |
-| `HerbloreRecipes`     | 72   | `HerbloreRecipes.Melee_Accuracy_Potion` | Herblore recipes.                                             |
-| `SummoningRecipes`    | 53   | `SummoningRecipes.GolbinThief`          | Summoning recipes.                                            |
-| `Obstacles`           | 115  | `Obstacles.CargoNet`                    | Agility obstacles.                                            |
-| `Constellations`      | 29   | `Constellations.Deedree`                | Astrology constellations.                                     |
-| `AltSpells`           | 26   | `AltSpells.JustLearning`                | Alt. Magic spells.                                            |
-| `DigSites`            | 18   | `DigSites.OldVillage`                   | Archaeology dig sites (Atlas of Discovery).                   |
-| `Veins`               | 7    | `Veins.Abyssal_Vein`                    | Harvesting veins (Into the Abyss).                            |
+| Map                   | Ids  | Example                                 |                                                                 |
+| --------------------- | ---- | --------------------------------------- | --------------------------------------------------------------- |
+| `Items`               | 3748 | `Items.Normal_Logs`                     | Every item in the game.                                         |
+| `Foods`               | 208  | `Foods.Shrimp`                          | Items that heal when eaten.                                     |
+| `SkillIds`            | 28   | `SkillIds.Woodcutting`                  | Skills.                                                         |
+| `Monsters`            | 377  | `Monsters.BlackKnight`                  | Monsters.                                                       |
+| `CombatAreas`         | 118  | `CombatAreas.Farmlands`                 | Combat areas, slayer areas, dungeons, strongholds and depths.   |
+| `Dungeons`            | 40   | `Dungeons.Chicken_Coop`                 | Dungeons (including Abyss depths).                              |
+| `ShopPurchases`       | 434  | `ShopPurchases.Extra_Bank_Slot`         | Shop purchases.                                                 |
+| `Prayers`             | 87   | `Prayers.Thick_Skin`                    | Prayers.                                                        |
+| `AttackStyles`        | 8    | `AttackStyles.Stab`                     | Attack styles.                                                  |
+| `EquipmentSlots`      | 19   | `EquipmentSlots.Helmet`                 | Equipment slots.                                                |
+| `Trees`               | 34   | `Trees.Normal`                          | Woodcutting trees.                                              |
+| `Fish`                | 59   | `Fish.Raw_Shrimp`                       | Fishing: fish.                                                  |
+| `Rocks`               | 40   | `Rocks.Rune_Essence`                    | Mining rocks.                                                   |
+| `ThievingNpcs`        | 50   | `ThievingNpcs.MAN`                      | Thieving NPCs.                                                  |
+| `FiremakingLogs`      | 33   | `FiremakingLogs.Normal_Logs`            | Firemaking: logs you can burn.                                  |
+| `CookingRecipes`      | 86   | `CookingRecipes.Shrimp`                 | Cooking recipes.                                                |
+| `SmithingRecipes`     | 279  | `SmithingRecipes.Bronze_Bar`            | Smithing recipes.                                               |
+| `FletchingRecipes`    | 132  | `FletchingRecipes.Arrow_Shafts`         | Fletching recipes.                                              |
+| `CraftingRecipes`     | 187  | `CraftingRecipes.Leather_Gloves`        | Crafting recipes.                                               |
+| `RunecraftingRecipes` | 229  | `RunecraftingRecipes.Air_Rune`          | Runecrafting recipes.                                           |
+| `HerbloreRecipes`     | 72   | `HerbloreRecipes.Melee_Accuracy_Potion` | Herblore recipes.                                               |
+| `SummoningRecipes`    | 53   | `SummoningRecipes.GolbinThief`          | Summoning recipes.                                              |
+| `Obstacles`           | 115  | `Obstacles.CargoNet`                    | Agility obstacles.                                              |
+| `Constellations`      | 29   | `Constellations.Deedree`                | Astrology constellations.                                       |
+| `AltSpells`           | 26   | `AltSpells.JustLearning`                | Alt. Magic spells.                                              |
+| `DigSites`            | 18   | `DigSites.OldVillage`                   | Archaeology dig sites (Atlas of Discovery).                     |
+| `Veins`               | 7    | `Veins.Abyssal_Vein`                    | Harvesting veins (Into the Abyss).                              |
+| `Crops`               | 71   | `Crops.Potatoes`                        | Farming crops: what you plant.                                  |
+| `FarmingPlots`        | 47   | `FarmingPlots.AllotmentPlot1`           | Farming plots.                                                  |
+| `FarmingCategories`   | 4    | `FarmingCategories.Allotment`           | Kinds of farming plot: allotments, herbs, trees, special plots. |

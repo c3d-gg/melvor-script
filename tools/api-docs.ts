@@ -217,7 +217,7 @@ function build(): string {
 Everything a script can do. \`m\` is the object your \`run\` callback gets (or that \`await connect()\` returns).
 
 - **Reads are synchronous.** \`m.state\` mirrors the game: it's pushed several times a second and refreshed before every call returns. \`m.bank.count(...)\`, \`m.skills.woodcutting.level\` and friends read from it.
-- **Actions are async and paced.** Skill actions and combat (\`attack\`, \`fight\`, \`dungeon\`) resolve when you may act again. Calling one while \`!m.ready\` rejects at once with \`COOLDOWN\` or \`BUSY\`. Everything else (bank, shop, eating, equipment, mastery spending, data lookups) is free.
+- **Actions are async and paced.** Skill actions and combat (\`attack\`, \`fight\`, \`dungeon\`) resolve when you may act again. Calling one while \`!m.ready\` rejects at once with \`COOLDOWN\` or \`BUSY\`. Everything else (bank, shop, eating, equipment, farming, mastery spending, data lookups) is free.
 - **Ids are typed.** \`Items.Oak_Logs\`, \`Trees.Oak\`, \`Monsters.Chicken\` ... a typo fails at compile time. See [Ids](#ids).
 
 This page is generated from the source by \`bun run docs\`. The descriptions are the doc comments VS Code shows on hover.
@@ -251,6 +251,9 @@ This page is generated from the source by \`bun run docs\`. The descriptions are
   const skillProps = skills.members.filter((m): m is ts.PropertyDeclaration => ts.isPropertyDeclaration(m) && !!m.type);
   const actionRows: string[] = [];
   const statOnly: string[] = [];
+  /** Skills with their own API rather than act() (Farming): a section each. */
+  const ownApis: string[] = [];
+  const parentOf = (c: ts.ClassDeclaration) => c.heritageClauses?.[0]?.types[0]?.expression.getText();
   for (const p of skillProps) {
     const name = (p.name as ts.Identifier).text;
     const type = p.type!.getText();
@@ -258,7 +261,14 @@ This page is generated from the source by \`bun run docs\`. The descriptions are
       statOnly.push(`\`${name}\``);
       continue;
     }
-    for (const m of members(cls(melvor, type)).filter((x) => x.kind === 'method'))
+    const c = cls(melvor, type);
+    if (parentOf(c) !== 'ActionSkill') {
+      ownApis.push(
+        [`### m.skills.${name}`, md(doc(c)), memberList(members(c).filter((x) => x.kind === 'method'))].join('\n\n'),
+      );
+      continue;
+    }
+    for (const m of members(c).filter((x) => x.kind === 'method'))
       actionRows.push(`| \`m.skills.${name}\` | \`${cell(m.sig)}\` | ${cell(m.doc)} |`);
   }
   sections.push(
@@ -269,12 +279,16 @@ This page is generated from the source by \`bun run docs\`. The descriptions are
       'Each returns a [`Promise<ActionResult>`](#actionresult) that resolves when you may act again. `opts` is [`ActOptions`](#actoptions).',
       '| Skill | Action | |\n| --- | --- | --- |\n' + actionRows.join('\n'),
       `Level and XP only (no scripted actions yet): ${statOnly.join(', ')}.`,
+      ...ownApis,
       '### Every skill',
       'On all of the above, e.g. `m.skills.mining.level`.',
       memberList(members(cls(melvor, 'Skill'))),
       '### Every skill with actions',
       "On every skill in the actions table, plus `m.skills.get(id)`. `T` is that skill's id type (`TreeId` for woodcutting).",
       memberList(members(cls(melvor, 'ActionSkill'))),
+      '### Mastery',
+      'On every skill with actions, and on `m.skills.farming` (`T` is `CropId` there).',
+      memberList(members(cls(melvor, 'MasterySkill'))),
     ].join('\n\n'),
   );
 
@@ -300,6 +314,9 @@ This page is generated from the source by \`bun run docs\`. The descriptions are
     'MonsterInfo',
     'AreaInfo',
     'ShopPurchaseInfo',
+    'FarmingPlotInfo',
+    'PlantResult',
+    'HarvestResult',
     'RuntimeInfo',
   ];
   sections.push(
