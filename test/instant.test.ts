@@ -128,6 +128,23 @@ describe('instant skills', () => {
     assert.equal(game.woodcutting.isActive, false);
   });
 
+  it("clicks don't make the game save after every action; everything else still does", async () => {
+    // skill.stop() calls game.scheduleSave(), and the game saves on the next tick: at speed 50 that was
+    // ~10 full saves a second, which grew the game's memory until it crashed. The timed autosave covers clicks.
+    const m = await client();
+    const wc = m.skills.get('test:Woodcutting');
+    for (let i = 0; i < 3; i++) await wc.act('test:Oak');
+    assert.equal(logs(), 3);
+    assert.equal(game.saveRequests, 0);
+    game.scheduleSave();
+    assert.equal(game.saveRequests, 1);
+    // Unloading the runtime puts the game's own scheduleSave back.
+    await rt.dispose();
+    assert.equal(Object.prototype.hasOwnProperty.call(game, 'scheduleSave'), false);
+    rt = makeRuntime(game);
+    await rt.start();
+  });
+
   it('acting during the cooldown fails at once: locally (COOLDOWN) and in the game', async () => {
     const m = await client();
     // A raw call returns right after the click, so the cooldown is still running.

@@ -260,6 +260,8 @@ export class GatheringSkill extends Emitter {
     this.actionTimer.stop();
     this.game.clearActiveAction();
     this.onStop();
+    // skill.js: every stop asks for a save on the next tick.
+    this.game.scheduleSave();
     return true;
   }
   onStop() {}
@@ -597,6 +599,11 @@ export class FakeGame {
   }
   clearActiveAction() {
     this.activeAction = undefined;
+  }
+  /** Test counter: how many times something asked the game to save (game.js saves on the next tick). */
+  saveRequests = 0;
+  scheduleSave() {
+    this.saveRequests++;
   }
   checkRequirements(reqs: { met?: boolean }[] = []) {
     return reqs.every((r) => r.met !== false);

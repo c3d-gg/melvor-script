@@ -202,6 +202,21 @@ export class ClickController {
         if (e?.successful === false) this.capture.failed = true;
       });
     }
+    // Every instant click ends in skill.stop(), and stop() asks for a save (game.scheduleSave). The game saves on the
+    // next 50 ms tick whenever one is pending, so at speed 50 it rewrote the whole save about 10 times a second, and
+    // that grew the game's memory until it crashed after a few hours. The timed autosave (every 10 s) still runs, so
+    // skipping the per-click request loses no more than an ordinary session would.
+    if (typeof this.game.scheduleSave === 'function') {
+      this.wrap(
+        this.game,
+        'scheduleSave',
+        (impl) =>
+          function (this: GameObject, ...args: unknown[]) {
+            if (ctl.inClick) return undefined;
+            return impl.apply(this, args);
+          },
+      );
+    }
     this.listen(this.game.bank, 'itemChanged', (e) => {
       const out = this.capture;
       if (out && e?.item) add(out.items, e.item.id, (e.newQuantity ?? 0) - (e.oldQuantity ?? 0));
