@@ -211,8 +211,15 @@ async function main() {
   await $`git add package.json CHANGELOG.md README.md modio/description.html`;
   await $`git commit -q -m ${`chore(release): v${next}`}`;
   await $`git tag -a ${`v${next}`} -m ${`v${next}`}`;
-  await $`git push -q origin main`;
-  await $`git push -q origin ${`v${next}`}`;
+  // One atomic push, retried: if GitHub rejects either ref, neither moves, so the run can simply be repeated.
+  // (v0.6.0's tag push once failed on its own after main had moved, stranding the release commit.)
+  for (let attempt = 1; ; attempt++) {
+    const push = await $`git push -q --atomic origin main ${`v${next}`}`.quiet().nothrow();
+    if (push.exitCode === 0) break;
+    if (attempt === 3) fail(`git push failed (nothing was pushed):\n${push.stderr.toString().trim()}`);
+    console.log(`git push failed, retrying (${attempt}/3)...`);
+    await Bun.sleep(5000 * attempt);
+  }
   await $`gh release create ${`v${next}`} ${zip} --title ${`v${next}`} --notes-file ${notesFile}`;
   console.log(`\n✔ v${next} released: ${REPO_URL}/releases/tag/v${next}`);
 }
