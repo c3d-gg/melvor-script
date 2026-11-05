@@ -1,6 +1,6 @@
 {
   "name": "melvor-script",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Play Melvor Idle by writing TypeScript. The game runs a local WebSocket server; your scripts (run from VS Code) drive every action.",
   "license": "MIT",
   "repository": {

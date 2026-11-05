@@ -4,6 +4,17 @@ All notable changes, newest first. Versions follow [Semantic Versioning](https:/
 bump may change behaviour). Entries are written by `bun run release` from
 [Conventional Commit](https://www.conventionalcommits.org) messages.
 
+## [0.5.0](https://github.com/c3d-gg/melvor-script/releases/tag/v0.5.0) - 2026-11-05
+
+### Features
+
+- mastery API and a generated API reference ([3378fd3](https://github.com/c3d-gg/melvor-script/commit/3378fd3c2168011c64fff1dadb4971b70f3f199e))
+
+### Fixes
+
+- **runtime:** stop Scripted Mode from saving the game after every action ([e6a1d2e](https://github.com/c3d-gg/melvor-script/commit/e6a1d2e777d3518b809b0fc3e2ec54be0b76b0ef))
+- **client:** say plainly when the game closes mid-script ([4ae73b2](https://github.com/c3d-gg/melvor-script/commit/4ae73b24ae47b5f28b79b3490e3f4a2a2a31c878))
+
 ## [0.4.0](https://github.com/c3d-gg/melvor-script/releases/tag/v0.4.0) - 2026-11-04
 
 ### Features
