@@ -4,6 +4,16 @@ All notable changes, newest first. Versions follow [Semantic Versioning](https:/
 bump may change behaviour). Entries are written by `bun run release` from
 [Conventional Commit](https://www.conventionalcommits.org) messages.
 
+## [0.7.0](https://github.com/c3d-gg/melvor-script/releases/tag/v0.7.0) - 2026-11-06
+
+### Features
+
+- **combat:** slayer tasks, potions and combat spell selection ([5af2e67](https://github.com/c3d-gg/melvor-script/commit/5af2e67209a2e4d619d52193133232e21e3371e5))
+
+### Fixes
+
+- **magic:** Alt Magic spells no longer report locked at any level ([83c9882](https://github.com/c3d-gg/melvor-script/commit/83c9882dd853369a3682e8b2ed7b3176925a5af9))
+
 ## [0.6.0](https://github.com/c3d-gg/melvor-script/releases/tag/v0.6.0) - 2026-11-05
 
 ### Features

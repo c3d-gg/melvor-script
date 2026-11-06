@@ -78,7 +78,7 @@ On a normal character, each scripted action takes the skill's normal interval. A
    ```sh
    mkdir my-melvor-scripts && cd my-melvor-scripts
    bun init -y
-   bun add github:c3d-gg/melvor-script#v0.6.0
+   bun add github:c3d-gg/melvor-script#v0.7.0
    bunx melvor init
    ```
 
@@ -89,7 +89,7 @@ On a normal character, each scripted action takes the skill's normal interval. A
 
 **Updating:** mod.io updates the mod for you (restart the game). Then `bun add github:c3d-gg/melvor-script#vX.Y.Z` with the same version; `bunx melvor status` shows the version the game is running. If the two ever disagree on the protocol, the connection says which side to update.
 
-**Without mod.io:** every [release](https://github.com/c3d-gg/melvor-script/releases/latest) also has the mod as a zip ([melvor-script-v0.6.0.zip](https://github.com/c3d-gg/melvor-script/releases/download/v0.6.0/melvor-script-v0.6.0.zip)). Load it with the official Creator Toolkit mod: _Modding → Creator Toolkit_ → **Local Mods** → **Add Mod** → **Modfile**, pick the zip, **Save**, and restart.
+**Without mod.io:** every [release](https://github.com/c3d-gg/melvor-script/releases/latest) also has the mod as a zip ([melvor-script-v0.7.0.zip](https://github.com/c3d-gg/melvor-script/releases/download/v0.7.0/melvor-script-v0.7.0.zip)). Load it with the official Creator Toolkit mod: _Modding → Creator Toolkit_ → **Local Mods** → **Add Mod** → **Modfile**, pick the zip, **Save**, and restart.
 
 ## Settings
 
