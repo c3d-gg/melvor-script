@@ -3,7 +3,7 @@
  * selection state. Each adapter mirrors what the game's UI click handlers do,
  * minus the toasts and the implicit start().
  */
-import { RpcError, type Game, type GameObject, type RuntimeEnv } from './env.ts';
+import { RpcError, safe, type Game, type GameObject, type RuntimeEnv } from './env.ts';
 import { allObjects, resolveAction, resolveItem, idOf } from './lookup.ts';
 
 export interface Resolved {
@@ -32,6 +32,16 @@ export interface SkillAdapter {
 
 /** Level (and abyssal level) requirement only: what `isMasteryActionUnlocked` checks. */
 function levelUnlocked(skill: GameObject, action: GameObject): boolean {
+  // Skills without mastery (Alt Magic) answer false to isMasteryActionUnlocked for every action.
+  if (safe(() => skill.hasMastery === false, false)) {
+    return safe(
+      () =>
+        typeof skill.isBasicSkillRecipeUnlocked === 'function'
+          ? !!skill.isBasicSkillRecipeUnlocked(action)
+          : skill.level >= (action.level ?? 0) && (skill.abyssalLevel ?? 0) >= (action.abyssalLevel ?? 0),
+      true,
+    );
+  }
   if (typeof skill.isMasteryActionUnlocked !== 'function') return true;
   try {
     return !!skill.isMasteryActionUnlocked(action);

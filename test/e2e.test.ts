@@ -370,6 +370,18 @@ describe('mastery', () => {
     (game.thieving as { hasMastery: boolean }).hasMastery = false;
     await assert.rejects(m.skills.get('test:Thieving').mastery('test:Man'), /has no mastery/);
   });
+
+  it('skills without mastery (like Alt Magic) still unlock actions by level', async () => {
+    // altMagic.js: isMasteryActionUnlocked always returns false, since Magic has no mastery.
+    const th = game.thieving as unknown as { hasMastery: boolean; isMasteryActionUnlocked: () => boolean };
+    th.hasMastery = false;
+    th.isMasteryActionUnlocked = () => false;
+    const m = await client();
+    const r = await m.skills.get('test:Thieving').act('test:Man');
+    assert.equal(r.completed, 1);
+    game.thieving.actions.getObjectByID('test:Man')!.level = 99;
+    await assert.rejects(m.skills.get('test:Thieving').act('test:Man'), /requires Thieving level 99/);
+  });
 });
 
 describe('combat, bank, lifecycle', () => {
