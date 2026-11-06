@@ -1,0 +1,21 @@
+{
+  "$comment": "The roadmap, shown on the docs site (Roadmap page) and on the mod.io page (modio/description.html, rewritten by `bun run docs:site`). On a release, move shipped items from next to available.",
+  "available": [
+    "gathering and artisan skills",
+    "farming",
+    "mastery",
+    "turn-based combat and dungeons",
+    "Slayer tasks",
+    "potions",
+    "combat spells",
+    "food, prayers and equipment",
+    "the bank and the shop"
+  ],
+  "next": [
+    { "title": "Astrology upgrades", "detail": "spending stardust on constellation modifiers." },
+    { "title": "Agility", "detail": "building obstacles and pillars for your course." },
+    { "title": "Cartography", "detail": "surveying, paper, maps and travel." },
+    { "title": "Township", "detail": "the town, with its own Township speed setting in Scripted Mode." }
+  ],
+  "later": ["skill trees", "choosing Archaeology maps and tools"]
+}

@@ -32,6 +32,10 @@ This page is generated from the source by `bun run docs`. The descriptions are t
 
 Sub-APIs: [`m.skills`](#mskills), [`m.bank`](#mbank), [`m.player`](#mplayer), [`m.combat`](#mcombat), [`m.potions`](#mpotions), [`m.shop`](#mshop), [`m.data`](#mdata).
 
+Your connection to the game: the `m` that `run` gives you. Reads (`m.state`, `m.gp`) are
+synchronous; pacing (`m.ready`, `m.whenReady()`), events (`m.on`) and logging live here, and
+every other part of the API hangs off it: `m.skills`, `m.bank`, `m.player`, `m.combat`...
+
 **Properties** (synchronous, from the live state)
 
 - **`state: GameState`**
@@ -147,6 +151,9 @@ Level and XP only (no scripted actions yet): `attack`, `strength`, `defence`, `h
 
 ### m.skills.farming
 
+Farming: plots, planting, compost and harvesting. In Scripted Mode crops grow on their own,
+in their normal time divided by the Farming speed setting. All free: no cooldown.
+
 - **`plots(category?: FarmingCategoryId): Promise<FarmingPlot[]>`**
   Every plot (or one kind, e.g. `FarmingCategories.Herb`): what's in it and when it's ready.
 - **`plot(plot: FarmingPlotId): Promise<FarmingPlot>`**
@@ -234,6 +241,8 @@ On every skill with actions, and on `m.skills.farming` (`T` is `CropId` there).
 
 ## m.bank
 
+What you own: counts, slots, and selling, opening and burying items. Free: no cooldown.
+
 **Properties** (synchronous, from the live state)
 
 - **`usedSlots: number`**
@@ -261,6 +270,9 @@ On every skill with actions, and on `m.skills.farming` (`T` is `CropId` there).
   Bury bones for prayer points.
 
 ## m.player
+
+Your character: HP, food, equipment, prayers, attack style and combat spells. Everything
+here is free (no cooldown), so you can eat or change gear in the middle of a fight.
 
 **Properties** (synchronous, from the live state)
 
@@ -325,6 +337,9 @@ On every skill with actions, and on `m.skills.farming` (`T` is `CropId` there).
 
 ## m.combat
 
+Fighting: start a fight, attack (Scripted Mode), fight for a number of kills, run dungeons,
+collect loot. `fight`, `attack` and `dungeon` use the cooldown; the rest is free.
+
 **Properties** (synchronous, from the live state)
 
 - **`slayer: Slayer`**
@@ -370,6 +385,8 @@ On every skill with actions, and on `m.skills.farming` (`T` is `CropId` there).
 
 ## m.combat.slayer
 
+Slayer tasks: get one, extend it, and fight it to the end. Getting tasks is free; `fight` uses the cooldown.
+
 **Properties** (synchronous, from the live state)
 
 - **`task: SlayerTask | null`**
@@ -400,6 +417,8 @@ On every skill with actions, and on `m.skills.farming` (`T` is `CropId` there).
 
 ## m.potions
 
+Potions in use, one per action ('melvorD:Combat' or a skill), and drinking new ones. Free: no cooldown.
+
 **Properties** (synchronous, from the live state)
 
 - **`active: Partial<Record<PotionAction, ActivePotion>>`**
@@ -422,12 +441,25 @@ On every skill with actions, and on `m.skills.farming` (`T` is `CropId` there).
 
 ## m.shop
 
+The shop: what it sells, and buying. Free: no cooldown.
+
 **Methods**
 
 - **`buy(purchase: ShopPurchaseId, quantity = 1): Promise<{ bought: number; items: Record<string, number>; }>`**
+  Buy `quantity` of a shop purchase (see `ShopPurchases`), like clicking Buy in the shop.
+  Refuses with MISSING_ITEMS if you can't afford it (`e.missing` says what you're short of),
+  or LOCKED at the buy limit or when its requirements aren't met.
+
+  ```ts
+  await m.shop.buy(ShopPurchases.Compost, 100);
+  ```
+
 - **`list(): Promise<ShopPurchaseInfo[]>`**
+  Everything the shop sells: costs, how many you own, the buy limit, and whether it's unlocked.
 
 ## m.data
+
+Look up the game's data: items, skill actions, monsters, areas and spells. Most lookups are cached.
 
 **Methods**
 

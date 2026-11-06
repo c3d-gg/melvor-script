@@ -1,0 +1,325 @@
+/* Colours from the mod's logo: teal accent, amber highlight, blue-grey ink. */
+:root {
+  --sl-color-accent-low: #0e3632;
+  --sl-color-accent: #2dd4bf;
+  --sl-color-accent-high: #a7f3e6;
+  --sl-color-white: #ffffff;
+  --sl-color-gray-1: #e8edf3;
+  --sl-color-gray-2: #c9d4e0;
+  --sl-color-gray-3: #aab6c4;
+  --sl-color-gray-4: #6b7889;
+  --sl-color-gray-5: #3a4452;
+  --sl-color-gray-6: #1f2530;
+  --sl-color-black: #11151c;
+  --ms-amber: #fbbf24;
+  --ms-violet: #c4a7ff;
+  --ms-card: color-mix(in srgb, var(--sl-color-gray-6) 70%, transparent);
+}
+:root[data-theme='light'] {
+  --sl-color-accent-low: #ccfbf1;
+  --sl-color-accent: #0f766e;
+  --sl-color-accent-high: #134e4a;
+  --sl-color-white: #11151c;
+  --sl-color-gray-1: #1f2530;
+  --sl-color-gray-2: #3a4452;
+  --sl-color-gray-3: #55606f;
+  --sl-color-gray-4: #8a95a3;
+  --sl-color-gray-5: #c9d4e0;
+  --sl-color-gray-6: #eef2f6;
+  --sl-color-gray-7: #f6f8fa;
+  --sl-color-black: #ffffff;
+  --ms-amber: #b45309;
+  --ms-violet: #6d28d9;
+  --ms-card: var(--sl-color-gray-7);
+}
+
+/* ---- reference pages ---------------------------------------------------- */
+.api-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-top: 0.5rem !important;
+  font-size: var(--sl-text-sm);
+}
+.api-meta p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin: 0;
+}
+.api-used {
+  color: var(--sl-color-gray-3);
+}
+.api-note {
+  font-size: var(--sl-text-sm);
+  color: var(--sl-color-gray-3);
+}
+/* Member headings on reference pages: monospace, without the inline-code box. */
+.sl-markdown-content h3 code {
+  font-size: 0.95em;
+  background: none;
+  padding: 0;
+  border: none;
+  color: var(--sl-color-white);
+}
+.sl-markdown-content table code {
+  white-space: nowrap;
+}
+.sl-markdown-content table .api-used {
+  font-size: var(--sl-text-xs);
+}
+
+/* ---- lessons ------------------------------------------------------------ */
+.challenge {
+  border: 1px solid var(--sl-color-gray-5);
+  border-left: 4px solid var(--ms-amber);
+  border-radius: 0.5rem;
+  padding: 1rem 1.25rem;
+  background: var(--ms-card);
+}
+.challenge > .challenge-title {
+  margin: 0;
+  font-weight: 600;
+  color: var(--sl-color-white);
+}
+.challenge-title span {
+  color: var(--ms-amber);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: var(--sl-text-xs);
+  margin-right: 0.5rem;
+}
+.challenge details {
+  margin-top: 0.75rem;
+}
+.challenge summary {
+  cursor: pointer;
+  color: var(--sl-color-accent);
+  font-weight: 600;
+}
+.goal-grid > *,
+.doors > *,
+.challenge > * {
+  margin-top: 0 !important;
+}
+.challenge > * + * {
+  margin-top: 0.75rem !important;
+}
+.goal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 1rem;
+}
+.goal {
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 0.5rem;
+  padding: 0.85rem 1.1rem;
+  background: var(--ms-card);
+}
+.goal > p:first-child {
+  margin: 0 0 0.35rem;
+  font-size: var(--sl-text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sl-color-accent);
+  font-weight: 600;
+}
+.goal ul {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+.lesson-meta {
+  color: var(--sl-color-gray-3);
+  font-size: var(--sl-text-sm);
+}
+
+/* ---- landing page ------------------------------------------------------- */
+.doors {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1rem;
+  margin-block: 1rem 2rem;
+}
+.door {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1.4rem 1.5rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--sl-color-gray-5);
+  background: var(--ms-card);
+  text-decoration: none;
+  color: var(--sl-color-gray-2);
+  transition:
+    border-color 0.15s,
+    transform 0.15s;
+}
+.door:hover {
+  border-color: var(--sl-color-accent);
+  transform: translateY(-2px);
+}
+.door .door-kicker {
+  font-size: var(--sl-text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  color: var(--ms-amber);
+}
+.door .door-title {
+  font-size: var(--sl-text-2xl);
+  font-weight: 700;
+  color: var(--sl-color-white);
+  line-height: 1.2;
+}
+.door .door-go {
+  margin-top: auto;
+  color: var(--sl-color-accent);
+  font-weight: 600;
+}
+.door ul {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.hero-code {
+  font-family: var(--__sl-font-mono, ui-monospace, 'Cascadia Code', Consolas, monospace);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  text-align: left;
+  border-radius: 0.75rem;
+  border: 1px solid var(--sl-color-gray-5);
+  background: #11151c;
+  color: #c9d4e0;
+  box-shadow: 0 20px 50px rgb(0 0 0 / 0.35);
+  overflow: hidden;
+  width: min(34rem, 100%);
+}
+.hero-code .bar {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.6rem 0.8rem;
+  border-bottom: 1px solid #1f2530;
+  font-size: 0.75rem;
+  color: #6b7889;
+  align-items: center;
+}
+.hero-code .dot {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+  background: #3a4452;
+}
+.hero-code pre {
+  margin: 0;
+  padding: 0.9rem 1rem 1.1rem;
+  background: none;
+  white-space: pre;
+  overflow-x: auto;
+}
+.hero-code .k {
+  color: #c4a7ff;
+}
+.hero-code .f {
+  color: #5eead4;
+}
+.hero-code .t {
+  color: #fbbf24;
+}
+.hero-code .c {
+  color: #6b7889;
+}
+.hero-code .s {
+  color: #a5d6ff;
+}
+
+/* ---- id search ---------------------------------------------------------- */
+.id-search input[type='search'] {
+  width: 100%;
+  padding: 0.7rem 0.9rem;
+  font-size: var(--sl-text-base);
+  border-radius: 0.5rem;
+  border: 1px solid var(--sl-color-gray-5);
+  background: var(--sl-color-black);
+  color: var(--sl-color-white);
+}
+.id-search input[type='search']:focus {
+  outline: 2px solid var(--sl-color-accent);
+  outline-offset: 1px;
+}
+.id-search .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+.id-search .chips > *,
+.id-search ul.results > li,
+.id-search ul.results button > * {
+  margin: 0 !important;
+}
+.id-search .chips button {
+  border: 1px solid var(--sl-color-gray-5);
+  background: transparent;
+  color: var(--sl-color-gray-2);
+  border-radius: 999px;
+  padding: 0.15rem 0.7rem;
+  font-size: var(--sl-text-xs);
+  cursor: pointer;
+}
+.id-search .chips button[aria-pressed='true'] {
+  border-color: var(--sl-color-accent);
+  background: var(--sl-color-accent-low);
+  color: var(--sl-color-accent-high);
+}
+.id-search .status {
+  font-size: var(--sl-text-sm);
+  color: var(--sl-color-gray-3);
+  margin-top: 0.75rem;
+}
+.id-search ul.results {
+  list-style: none;
+  padding: 0;
+  margin-top: 0.5rem;
+}
+.id-search ul.results li {
+  margin: 0;
+}
+.id-search ul.results button {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.15rem 1rem;
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-bottom: 1px solid var(--sl-color-gray-6);
+  background: transparent;
+  color: inherit;
+  padding: 0.55rem 0.4rem;
+  cursor: pointer;
+  border-radius: 0.25rem;
+}
+.id-search ul.results button:hover,
+.id-search ul.results button:focus-visible {
+  background: var(--ms-card);
+}
+.id-search .ref {
+  font-family: var(--__sl-font-mono, monospace);
+  color: var(--sl-color-white);
+}
+.id-search .name {
+  color: var(--sl-color-gray-3);
+  font-size: var(--sl-text-sm);
+}
+.id-search .raw {
+  font-family: var(--__sl-font-mono, monospace);
+  color: var(--sl-color-gray-4);
+  font-size: var(--sl-text-xs);
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+.id-search .copied {
+  color: var(--sl-color-accent);
+}

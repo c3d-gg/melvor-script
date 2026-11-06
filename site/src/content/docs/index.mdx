@@ -1,0 +1,68 @@
+---
+title: Melvor Script
+description: Play Melvor Idle by writing TypeScript. Your scripts run in VS Code and control your character.
+template: splash
+hero:
+  title: Play Melvor Idle by writing code
+  tagline: Nothing in the game repeats on its own. Every chop, every fight and every harvest comes from TypeScript you write in VS Code.
+  image:
+    html: |
+      <div class="hero-code" aria-label="An example script">
+        <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>scripts/woodcutter.ts</span></div>
+        <pre><span class="k">import</span> { run, <span class="t">Trees</span>, <span class="t">Items</span> } <span class="k">from</span> <span class="s">'melvor-script'</span>;
+
+      <span class="f">run</span>(<span class="k">async</span> (m) =&gt; {
+        <span class="c">// chop until the bank has 100 oak logs</span>
+        <span class="k">while</span> (m.bank.<span class="f">count</span>(<span class="t">Items</span>.Oak_Logs) &lt; 100) {
+          <span class="k">await</span> m.skills.woodcutting.<span class="f">cut</span>(<span class="t">Trees</span>.Oak);
+        }
+        m.<span class="f">log</span>(<span class="s">'Done!'</span>);
+      });</pre>
+      </div>
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+<div class="doors">
+  <a class="door" href="/learn/">
+    <span class="door-kicker">New to coding?</span>
+    <span class="door-title">Learn to code by playing</span>
+    <span>A course that starts from nothing. Each lesson teaches one programming idea through something you want in the game: more logs, a fire, a fight you survive.</span>
+    <span class="door-go">Start the course →</span>
+  </a>
+  <a class="door" href="/start/quick-start/">
+    <span class="door-kicker">Know TypeScript?</span>
+    <span class="door-title">Quick start</span>
+    <span>Install the mod, add the package, run a script. Then the rules that matter: synchronous state, paced actions, typed ids.</span>
+    <span class="door-go">Five minutes →</span>
+  </a>
+</div>
+
+## What your scripts can do
+
+<CardGrid>
+  <Card title="Every gathering and crafting skill" icon="setting">
+    Woodcutting, mining, fishing, smithing, cooking, runecrafting, herblore and the rest, with mastery.
+  </Card>
+  <Card title="Combat" icon="random">
+    Melee, ranged and magic. Turn-based fights you control round by round, dungeons, loot, prayers and potions.
+  </Card>
+  <Card title="Slayer" icon="star">
+    Get tasks, extend them and fight until they're done, back to back.
+  </Card>
+  <Card title="Farming" icon="seti:plan">
+    Plant, compost and harvest. Crops grow on their own while your script does other things.
+  </Card>
+  <Card title="The bank and the shop" icon="database">
+    Count what you have, sell, buy, equip. Every item has a typed id, so a typo fails before the script runs.
+  </Card>
+  <Card title="React to the game" icon="rocket">
+    Events for level-ups, kills and finished jobs, and a live copy of the game state to read at any time.
+  </Card>
+</CardGrid>
+
+## Fair by design
+
+Your script can't go faster than the rules allow. In **Scripted Mode**, every action happens the moment you ask, then a cooldown starts: the action's normal time divided by a speed you choose. A loop that tries to spam simply waits. On a normal character, actions take their usual time. [How it works](/concepts/how-it-works/) explains the rules.
+
+It's a programming game in the spirit of Screeps, Bitburner and Adventure Land, inside an idle game you might already play.

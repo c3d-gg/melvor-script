@@ -87,6 +87,7 @@ export type GameEvent<T extends GameEventType = GameEventType> = Extract<GameEve
 // Skills
 // ---------------------------------------------------------------------------
 
+/** Any skill: level, XP and level cap. Skills with actions add `act`, mastery and their own verbs. */
 export class Skill {
   constructor(
     protected readonly m: Melvor,
@@ -325,6 +326,10 @@ export type FarmingPlot = Omit<FarmingPlotInfo, 'id' | 'category' | 'crop'> & {
   crop: CropId | null;
 };
 
+/**
+ * Farming: plots, planting, compost and harvesting. In Scripted Mode crops grow on their own,
+ * in their normal time divided by the Farming speed setting. All free: no cooldown.
+ */
 export class Farming extends MasterySkill<CropId> {
   /** Every plot (or one kind, e.g. `FarmingCategories.Herb`): what's in it and when it's ready. */
   plots(category?: FarmingCategoryId): Promise<FarmingPlot[]> {
@@ -411,6 +416,7 @@ export class Farming extends MasterySkill<CropId> {
   }
 }
 
+/** Every skill, by name: `m.skills.woodcutting`, `m.skills.mining`... or by id with `get`. */
 export class Skills {
   readonly woodcutting: Woodcutting;
   readonly fishing: Fishing;
@@ -489,6 +495,7 @@ export class Skills {
 // Bank, player, combat, shop, data
 // ---------------------------------------------------------------------------
 
+/** What you own: counts, slots, and selling, opening and burying items. Free: no cooldown. */
 export class Bank {
   constructor(private m: Melvor) {}
 
@@ -535,6 +542,10 @@ export class Bank {
   }
 }
 
+/**
+ * Your character: HP, food, equipment, prayers, attack style and combat spells. Everything
+ * here is free (no cooldown), so you can eat or change gear in the middle of a fight.
+ */
 export class Player {
   constructor(private m: Melvor) {}
 
@@ -667,6 +678,7 @@ export interface ActivePotion {
   charges: number;
 }
 
+/** Slayer tasks: get one, extend it, and fight it to the end. Getting tasks is free; `fight` uses the cooldown. */
 export class Slayer {
   constructor(private m: Melvor) {}
 
@@ -715,6 +727,7 @@ export class Slayer {
   }
 }
 
+/** Potions in use, one per action ('melvorD:Combat' or a skill), and drinking new ones. Free: no cooldown. */
 export class PotionManager {
   constructor(private m: Melvor) {}
 
@@ -757,6 +770,10 @@ export class PotionManager {
   }
 }
 
+/**
+ * Fighting: start a fight, attack (Scripted Mode), fight for a number of kills, run dungeons,
+ * collect loot. `fight`, `attack` and `dungeon` use the cooldown; the rest is free.
+ */
 export class Combat {
   /** Slayer tasks: get one, extend it, fight it. */
   readonly slayer: Slayer;
@@ -860,16 +877,26 @@ export class Combat {
   }
 }
 
+/** The shop: what it sells, and buying. Free: no cooldown. */
 export class Shop {
   constructor(private m: Melvor) {}
+  /**
+   * Buy `quantity` of a shop purchase (see `ShopPurchases`), like clicking Buy in the shop.
+   * Refuses with MISSING_ITEMS if you can't afford it (`e.missing` says what you're short of),
+   * or LOCKED at the buy limit or when its requirements aren't met.
+   *
+   *   await m.shop.buy(ShopPurchases.Compost, 100);
+   */
   buy(purchase: ShopPurchaseId, quantity = 1) {
     return this.m.connection.call('shop.buy', { purchase, quantity });
   }
+  /** Everything the shop sells: costs, how many you own, the buy limit, and whether it's unlocked. */
   list(): Promise<ShopPurchaseInfo[]> {
     return this.m.connection.call('shop.list');
   }
 }
 
+/** Look up the game's data: items, skill actions, monsters, areas and spells. Most lookups are cached. */
 export class GameData {
   private itemCache = new Map<string, ItemInfo>();
   private actionCache = new Map<string, ActionInfo[]>();
@@ -920,6 +947,11 @@ export class GameData {
 
 type StateListener = (state: GameState, changed: StateSection[]) => void;
 
+/**
+ * Your connection to the game: the `m` that `run` gives you. Reads (`m.state`, `m.gp`) are
+ * synchronous; pacing (`m.ready`, `m.whenReady()`), events (`m.on`) and logging live here, and
+ * every other part of the API hangs off it: `m.skills`, `m.bank`, `m.player`, `m.combat`...
+ */
 export class Melvor {
   /** Live mirror of the game state. Updated a few times per second and before every call returns. */
   readonly state: GameState;

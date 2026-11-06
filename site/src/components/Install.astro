@@ -1,0 +1,18 @@
+---
+/** The commands that make a scripts folder, pinned to the version this site documents. */
+import { Code } from '@astrojs/starlight/components';
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+const root = existsSync(resolve(process.cwd(), 'site')) ? process.cwd() : resolve(process.cwd(), '..');
+const { version } = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'));
+const code = [
+  'mkdir my-melvor-scripts',
+  'cd my-melvor-scripts',
+  'bun init -y',
+  `bun add github:c3d-gg/melvor-script#v${version}`,
+  'bunx melvor init',
+].join('\n');
+---
+
+<Code code={code} lang="sh" frame="terminal" title="Terminal" />

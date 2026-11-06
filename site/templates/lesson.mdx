@@ -1,0 +1,44 @@
+---
+# Copy to src/content/docs/learn/NN-short-name.mdx. Lessons are for people new to code: see CONTRIBUTING.md, "Voice".
+title: Making decisions
+description: Eat when your HP is low. if and else.
+sidebar:
+  label: 4. Making decisions
+  order: 4
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Challenge from '../../../components/Challenge.astro';
+import Goals from '../../../components/Goals.astro';
+import Snippet from '../../../components/Snippet.astro';
+
+<Goals
+  build={['What the reader will have made, in game terms']}
+  learn={['The one programming idea this lesson teaches', 'Any smaller ideas it needs']}
+  time="20 minutes"
+/>
+
+## The problem
+
+Start from something the reader wants in the game, and show why what they know so far isn't enough.
+
+## Write it
+
+<Snippet file="site/snippets/learn/NN-name.ts" title="scripts/name.ts" />
+
+## How it works
+
+Walk through the new lines, one block at a time: the code, then what it means in plain words.
+
+<Aside title="New idea: the term">Define each new word once, the first time it appears.</Aside>
+
+## Common mistakes
+
+- The mistake people make with this idea, and what the error says.
+
+## Try it yourself
+
+<Challenge title="One small change">
+  What to change, with a hint.
+  <Snippet slot="solution" file="site/snippets/learn/NN-challenge-name.ts" title="scripts/name.ts" />
+</Challenge>

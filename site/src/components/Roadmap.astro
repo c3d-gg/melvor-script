@@ -1,0 +1,19 @@
+---
+/** The roadmap from site/roadmap.json (the mod.io page is generated from the same file). */
+import roadmap from '../../roadmap.json';
+---
+
+<h2 id="available-now">Available now</h2>
+<ul>{roadmap.available.map((a) => <li>{a[0]!.toUpperCase() + a.slice(1)}</li>)}</ul>
+<h2 id="coming-next">Coming next, in this order</h2>
+<ol>
+  {
+    roadmap.next.map((n) => (
+      <li>
+        <strong>{n.title}:</strong> {n.detail}
+      </li>
+    ))
+  }
+</ol>
+<h2 id="later">Later</h2>
+<ul>{roadmap.later.map((l) => <li>{l[0]!.toUpperCase() + l.slice(1)}</li>)}</ul>

@@ -1,0 +1,27 @@
+---
+/**
+ * A "try it yourself" task at the end of a lesson, with a hidden solution.
+ *
+ *   <Challenge title="Chop oak instead">
+ *     What to do...
+ *     <Snippet slot="solution" file="site/snippets/learn/..." />
+ *   </Challenge>
+ */
+interface Props {
+  title: string;
+}
+const { title } = Astro.props;
+---
+
+<div class="challenge">
+  <p class="challenge-title"><span>Challenge</span>{title}</p>
+  <slot />
+  {
+    Astro.slots.has('solution') && (
+      <details>
+        <summary>Show a solution</summary>
+        <slot name="solution" />
+      </details>
+    )
+  }
+</div>

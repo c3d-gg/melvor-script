@@ -1,0 +1,103 @@
+---
+title: Your first script
+description: Write a script that chops ten trees. Calling functions, await, and text.
+sidebar:
+  label: 2. Your first script
+  order: 2
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Challenge from '../../../components/Challenge.astro';
+import Goals from '../../../components/Goals.astro';
+import Snippet from '../../../components/Snippet.astro';
+
+<Goals
+  build={['A script that chops ten trees, then tells you your Woodcutting level']}
+  learn={['What each line of a script does', 'Calling a function and giving it values', '<code>await</code>: waiting for something to finish', 'Text, and putting values into it']}
+  time="20 minutes"
+/>
+
+## Write it
+
+<Steps>
+
+1. In VS Code, right-click the `scripts` folder and choose **New File**. Call it `first.ts`.
+
+2. Type this in. (Copying is fine, but typing it once helps you notice the details: every bracket and quote matters.)
+
+   <Snippet file="site/snippets/learn/first-script.ts" title="scripts/first.ts" />
+
+3. Save, and press **F5**. Watch the game: your character chops ten trees, then the Melvor Script panel says your level.
+
+</Steps>
+
+It worked? You just programmed. Now let's see what you wrote.
+
+## Line by line
+
+```ts
+import { run, Trees } from 'melvor-script';
+```
+
+**Borrow some tools.** `melvor-script` is the package you installed in lesson 1. This line takes two things from it: `run`, which connects to the game, and `Trees`, the list of every tree.
+
+```ts
+run(async (m) => {
+  // ...
+});
+```
+
+**Run these steps once you're connected to the game.** Everything between `{` and `}` is your script. `m` is the name for your connection to the game: through it, you reach everything. (You could call it anything. `m` is short for Melvor.)
+
+```ts
+m.log('Off to chop some trees!');
+```
+
+**Call a function.** A **function** is a named action: `log` writes a message to the Melvor Script panel. To **call** it, write its name followed by brackets, and put what it needs inside them. Here that's a piece of text. Text goes in quotes, and programmers call it a **string**.
+
+```ts
+await m.skills.woodcutting.cut(Trees.Normal, { count: 10 });
+```
+
+**Chop ten normal trees, and wait until that's done.** Read the dots like folders: in `m`, find `skills`, in there `woodcutting`, and in there the function `cut`. This time the function gets two things, separated by a comma: which tree (`Trees.Normal`), and options (`{ count: 10 }`, meaning "ten times").
+
+`await` means **wait here until it's finished**. Chopping takes a moment; without `await`, the next line would run straight away, before the logs arrive.
+
+```ts
+m.log(`Done! Woodcutting is level ${m.skills.woodcutting.level}.`);
+```
+
+**Put a value into text.** This string uses backticks (`` ` ``) instead of quotes. Inside backticks, `${ }` gets replaced by its value, so `${m.skills.woodcutting.level}` becomes your current level, like `Done! Woodcutting is level 4.`
+
+<Aside type="tip" title="New idea: let VS Code help">
+Type `Trees.` (with the dot) and VS Code lists every tree in the game. Type `m.skills.` and it lists every skill. Hover over `cut` and it explains what `cut` does. You never need to remember exact names.
+</Aside>
+
+<Aside title="New idea: comments">
+A line starting with `//` is a **comment**: a note for people, which the computer skips. The first line of the script is one. Use them to remind yourself what a part of your script is for.
+</Aside>
+
+## Common mistakes
+
+- **Red squiggly underline?** VS Code found a mistake before you ran anything. Hover over it to see what. Usually it's a missing bracket, quote or comma.
+- **Capital letters matter.** `Trees.Normal` works; `trees.normal` doesn't.
+- **Forgot `await`?** The script races ahead. Here, the message would show your level from *before* the chopping.
+
+## Try it yourself
+
+<Challenge title="Chop oak trees instead">
+  Change the script to chop oak trees. Hint: what does VS Code list after `Trees.`? If your Woodcutting level is below 10, run it anyway, and read what the error says.
+  <Snippet slot="solution" file="site/snippets/learn/first-script-oak.ts" title="scripts/first.ts" />
+</Challenge>
+
+<Challenge title="Count your logs">
+  After chopping, log how many normal logs are in your bank. You'll need `m.bank.count(...)` and `Items` (import it next to `Trees`).
+  <Snippet slot="solution" file="site/snippets/learn/first-script-count.ts" title="scripts/first.ts" />
+</Challenge>
+
+<Challenge title="Chop, then burn">
+  Chop five trees, then burn five logs with Firemaking. The logs to burn come from `FiremakingLogs`.
+  <Snippet slot="solution" file="site/snippets/learn/first-script-burn.ts" title="scripts/first.ts" />
+</Challenge>
+
+Next: [loops](/learn/03-loops/), so you can say "keep chopping until…" instead of counting.

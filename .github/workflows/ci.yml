@@ -18,4 +18,21 @@ jobs:
       - run: bun test
       - run: bun fmt --check
       - run: bun run docs --check
+      - run: bun run docs:site --check # every public call documented and shown in a guide (site/CONTRIBUTING.md)
       - run: bun run pack
+
+  site:
+    # Builds the docs site, so a broken page fails here rather than at the next release.
+    runs-on: ubuntu-latest
+    env:
+      ASTRO_TELEMETRY_DISABLED: 1
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - run: bun install --frozen-lockfile
+        working-directory: site
+      - run: bun run build
+        working-directory: site

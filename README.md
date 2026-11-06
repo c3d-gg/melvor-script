@@ -22,7 +22,7 @@ run(async (m) => {
 });
 ```
 
-**[API reference](docs/API.md)**: every call, property, result, event and error.
+**[Docs](https://c3d-gg.github.io/melvor-script/)**: a course for people new to coding, guides for each game system, and the full reference. The reference is also in this repo as [docs/API.md](docs/API.md).
 
 ## How it works
 
@@ -111,7 +111,7 @@ Put your files in `scripts/` (`melvor init` starts you off with `hello.ts`). Eac
 
 Examples (in [`examples/`](examples)): `hello.ts` (read state) · `loop.ts` (setInterval woodcut/burn) · `fight-loop.ts` (turn-based combat loop) · `woodcut-and-burn.ts` · `best-tree.ts` · `mine-and-smith.ts` · `food-and-fight.ts` · `farming.ts` (plant, wait, harvest) · `slayer.ts` (slayer tasks back to back, with a potion).
 
-The short version is below. The full one, with every property, result field, event and error, is the **[API reference](docs/API.md)**.
+The short version is below. The full one, with every property, result field, event and error, is the **[reference](https://c3d-gg.github.io/melvor-script/reference/)** ([docs/API.md](docs/API.md) in the repo).
 
 |                    |                                                                                                                                                                                                      |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -159,7 +159,8 @@ src/shared/     protocol types + generated ids
 examples/       demo scripts
 scripts/        your own scripts (gitignored)
 test/           end-to-end tests against a fake game
-tools/          build, id generation, release
+tools/          build, id generation, release, docs generators
+site/           the docs site (Astro Starlight); how to write for it: site/CONTRIBUTING.md
 ```
 
 ### Versioning and releases

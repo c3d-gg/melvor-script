@@ -4,4 +4,5 @@ printWidth = 120
 singleQuote = true
 ignorePatterns = [
   "src/shared/ids.generated.ts", # written by `bun run gen:ids`
+  "site/src/content/**", # MDX: the formatter breaks components nested in lists; `astro build` checks these
 ]

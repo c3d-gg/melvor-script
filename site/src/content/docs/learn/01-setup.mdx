@@ -1,0 +1,105 @@
+---
+title: Get set up
+description: Install VS Code, Bun and the mod, then run your first script.
+sidebar:
+  label: 1. Get set up
+  order: 1
+---
+
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import Goals from '../../../components/Goals.astro';
+import Install from '../../../components/Install.astro';
+import Snippet from '../../../components/Snippet.astro';
+
+<Goals
+  build={['A folder for your scripts, ready to go', 'Your first message from a script, shown in the game']}
+  learn={['What a code editor, a terminal and a package are', 'How to run a script']}
+  time="15 minutes"
+/>
+
+You'll install three things, then run a script someone else wrote, to check it all works. Next lesson, you write your own.
+
+You need **Melvor Idle on Steam** (the desktop version). The browser and phone versions can't run the mod.
+
+## Install the tools
+
+<Steps>
+
+1. **Install VS Code** from [code.visualstudio.com](https://code.visualstudio.com). It's a code editor: like a word processor, but for code. It colours your code, spots mistakes as you type, and runs your scripts.
+
+2. **Install Bun.** Bun is the program that runs your scripts. You install it from a **terminal**, a window where you type commands instead of clicking.
+
+   <Tabs syncKey="os">
+     <TabItem label="Windows">
+       Open the Start menu, type **PowerShell**, and open it. Paste this line and press Enter:
+
+       ```powershell
+       powershell -c "irm bun.sh/install.ps1|iex"
+       ```
+     </TabItem>
+     <TabItem label="macOS / Linux">
+       Open the **Terminal** app. Paste this line and press Enter:
+
+       ```sh
+       curl -fsSL https://bun.sh/install | bash
+       ```
+     </TabItem>
+   </Tabs>
+
+   Close the terminal when it's done. To check, open a new one and type `bun --version`: it should print a version number.
+
+3. **Add Bun to VS Code.** In VS Code, click the **Extensions** icon on the left (four squares), search for **Bun**, and install the one by **Oven**. It lets you run scripts by pressing **F5**.
+
+</Steps>
+
+## Install the mod
+
+<Steps>
+
+1. Start Melvor. On the character select screen, open the **Mod Manager**, go to **Browse**, search for **Melvor Script**, and click **Subscribe**.
+
+2. Restart the game.
+
+3. Make a new character and choose the **Scripted Mode** gamemode. (Scripts work on normal characters too, but Scripted Mode is made for them: every action happens instantly when your script asks.)
+
+4. Load the character. A **Melvor Script** panel appears in the bottom right corner. That's where your scripts' messages show up.
+
+</Steps>
+
+## Make your scripts folder
+
+<Steps>
+
+1. In VS Code, open a terminal inside the editor: menu **Terminal → New Terminal**.
+
+2. Paste these lines and press Enter. They make a folder called `my-melvor-scripts`, go into it, set it up, and download **melvor-script**: the **package** (a bundle of code someone wrote for others to use) that lets your scripts talk to the game.
+
+   <Install />
+
+3. Open the folder: menu **File → Open Folder**, and pick `my-melvor-scripts` (it's in your home folder, usually `C:\Users\your-name`).
+
+</Steps>
+
+On the left you'll now see the folder's files. `melvor init` made a `scripts` folder with one script in it, `hello.ts`.
+
+## Run your first script
+
+Open `scripts/hello.ts` and press **F5**. Watch the Melvor Script panel in the game: it greets your character by name and lists your best skills.
+
+That script was written for you. Here it is, so you know what's coming:
+
+<Snippet file="examples/hello.ts" title="scripts/hello.ts" replace={[['examples/hello.ts', 'scripts/hello.ts']]} />
+
+Don't worry about understanding it yet. By lesson 6 you'll be able to read every line.
+
+<Aside type="caution" title="It says it can't connect?">
+The game has to be running, with a character loaded, before you start a script. If you just installed the mod, restart the game once more and load the character again.
+</Aside>
+
+<Aside title="New words">
+- **Script**: a file of instructions for the computer. Yours end in `.ts`, for TypeScript.
+- **Terminal**: a window where you type commands. `bun scripts/hello.ts` typed there does the same as F5.
+- **Package**: code someone else wrote, that you download and use. `melvor-script` is one.
+</Aside>
+
+Everything works? Then it's time to [write your own](/learn/02-first-script/).

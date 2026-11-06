@@ -5,3 +5,6 @@
 
 # Not needed by projects that install the package from GitHub (Bun installs from the archive).
 /modio export-ignore
+/site export-ignore
+/.claude export-ignore
+/CLAUDE.md export-ignore

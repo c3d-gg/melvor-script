@@ -1,0 +1,35 @@
+---
+# Copy to src/content/docs/guides/system-name.mdx. Guides lead with code: see CONTRIBUTING.md, "Voice".
+title: Astrology
+description: One line on what this guide covers.
+sidebar:
+  order: 10
+---
+
+import { Aside, CardGrid, LinkCard, Tabs, TabItem } from '@astrojs/starlight/components';
+import Snippet from '../../../components/Snippet.astro';
+
+One paragraph: what scripts can do with this system, and the order the guide goes in.
+
+## The first thing people do
+
+<Snippet file="site/snippets/guides/system-name.ts" region="first" />
+
+What the code doesn't say: costs, levels, whether it uses the cooldown.
+
+## When it behaves differently
+
+<Tabs syncKey="mode">
+  <TabItem label="Scripted Mode">How it plays in Scripted Mode.</TabItem>
+  <TabItem label="Normal character">How it plays on a normal character.</TabItem>
+</Tabs>
+
+<Aside type="caution" title="The gotcha">
+  Put caveats where people hit them.
+</Aside>
+
+## Everything in the reference
+
+<CardGrid>
+  <LinkCard title="m.skills.name" href="/reference/skills/" description="The calls this guide uses" />
+</CardGrid>

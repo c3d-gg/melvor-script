@@ -1,0 +1,21 @@
+---
+/** The top of a lesson: what you'll make, and the ideas it teaches. */
+interface Props {
+  build: string[];
+  learn: string[];
+  time?: string;
+}
+const { build, learn, time } = Astro.props;
+---
+
+<div class="goal-grid">
+  <div class="goal">
+    <p>You'll make</p>
+    <ul>{build.map((b) => <li set:html={b} />)}</ul>
+  </div>
+  <div class="goal">
+    <p>You'll learn</p>
+    <ul>{learn.map((l) => <li set:html={l} />)}</ul>
+  </div>
+</div>
+{time && <p class="lesson-meta">About {time}.</p>}

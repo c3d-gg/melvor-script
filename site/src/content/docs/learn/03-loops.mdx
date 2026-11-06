@@ -1,0 +1,95 @@
+---
+title: Loops and variables
+description: Keep chopping until you have 100 logs. Variables, comparisons, while and for loops.
+sidebar:
+  label: 3. Loops and variables
+  order: 3
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import Challenge from '../../../components/Challenge.astro';
+import Goals from '../../../components/Goals.astro';
+import Snippet from '../../../components/Snippet.astro';
+
+<Goals
+  build={['A script that chops until you have 100 logs, however many you start with', 'A counter that tracks how many chops it took']}
+  learn={['Variables: <code>const</code> and <code>let</code>', 'Comparing numbers', '<code>while</code> loops: repeat until something is true', '<code>for</code> loops: repeat a set number of times']}
+  time="25 minutes"
+/>
+
+## Until, not how many
+
+Last lesson, `{ count: 10 }` chopped exactly ten trees. But say you want **100 logs in the bank**. If you have 37, you need 63 more; if you have 90, only 10. You could work it out, but it's easier to tell the computer: _keep chopping until there are 100_.
+
+That's a **loop**: steps that repeat.
+
+<Snippet file="site/snippets/learn/loop-until.ts" title="scripts/hundred.ts" />
+
+Make `scripts/hundred.ts`, run it, and watch the log count climb to 100.
+
+## How it works
+
+```ts
+const target = 100;
+```
+
+**A variable** is a name for a value. Now `target` means 100, and the script can say `target` instead of repeating the number. `const` means it never changes. (Want 500 logs instead? Change one number at the top.)
+
+```ts
+while (m.bank.count(Items.Normal_Logs) < target) {
+  await m.skills.woodcutting.cut(Trees.Normal);
+}
+```
+
+**A `while` loop** checks the condition in the brackets. If it's true, it runs the steps between `{` and `}`, then checks again. Over and over, until the condition is false. Then the script carries on below the loop.
+
+The condition here is a **comparison**: is the number of logs **less than** (`<`) the target? You have 37: yes, chop. You have 100: no, stop.
+
+| Comparison | Means                    |
+| ---------- | ------------------------ |
+| `a < b`    | a is less than b         |
+| `a <= b`   | a is less than or equal  |
+| `a > b`    | a is more than b         |
+| `a >= b`   | a is more than or equal  |
+| `a === b`  | a is exactly b           |
+| `a !== b`  | a is not b               |
+
+<Aside type="tip" title="Why doesn't it chop a million times a second?">
+Because of `await`. Each `cut` waits until the game says you may act again, so the loop goes exactly as fast as the game allows. [How it works](/concepts/how-it-works/#actions-and-the-cooldown) explains the cooldown.
+</Aside>
+
+## Variables that change
+
+How many chops did that take? Make a variable with `let` instead of `const`, and you can change it:
+
+<Snippet file="site/snippets/learn/loop-count.ts" title="scripts/hundred.ts" mark={[5, 9]} />
+
+`let chops = 0` starts the count at zero. Each time round the loop, `chops = chops + 1` means "chops is now whatever it was, plus one". (Programmers usually write `chops++`, which means the same.)
+
+## Repeat a set number of times
+
+When you know how many times, a **`for` loop** counts for you. This one does three rounds of "chop 20, burn 20":
+
+<Snippet file="site/snippets/learn/loop-rounds.ts" title="scripts/rounds.ts" />
+
+The brackets after `for` hold three parts, separated by `;`:
+
+1. `let round = 1`: start a counter at 1.
+2. `round <= 3`: keep going while it's 3 or less.
+3. `round++`: add one after each round.
+
+<Aside type="caution" title="A loop that never ends">
+If the condition never becomes false, the loop runs forever. With `await` inside, that's just a script that keeps playing, and sometimes it's what you want. Stop it any time with **Ctrl+C** in the terminal, or **stop** in the game's Melvor Script panel.
+</Aside>
+
+## Try it yourself
+
+<Challenge title="Two reasons to stop">
+  Stop at 100 logs **or** as soon as Woodcutting reaches level 15, whichever comes first. You can join two conditions: `a && b` is true when both are true, `a || b` when either is.
+  <Snippet slot="solution" file="site/snippets/learn/loop-level.ts" title="scripts/hundred.ts" />
+</Challenge>
+
+<Challenge title="Progress reports">
+  Log a message every 10 chops: "10 chops so far", "20 chops so far"… You'll need `%`, which gives the **remainder** after dividing: `20 % 10` is `0`, `23 % 10` is `3`. And a way to do something only when a condition is true: `if (condition) doSomething();` (lesson 4 covers `if` properly).
+  <Snippet slot="solution" file="site/snippets/learn/loop-progress.ts" title="scripts/hundred.ts" />
+</Challenge>

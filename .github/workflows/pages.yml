@@ -1,0 +1,67 @@
+# Publishes the docs site (site/) to GitHub Pages at https://c3d-gg.github.io/melvor-script/.
+# Runs after every successful Release, so the site documents the version people install.
+# By hand: Actions → Docs site → Run workflow. Leave "ref" empty for the latest release, or
+# give a branch or tag (e.g. main) to publish docs fixes made since.
+# One-time setup: repo Settings → Pages → Source: GitHub Actions.
+name: Docs site
+
+on:
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'What to publish: empty for the latest release tag, or a branch / tag such as main'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    env:
+      ASTRO_TELEMETRY_DISABLED: 1
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0 # tags too
+      - name: Check out what to publish
+        env:
+          REF: ${{ inputs.ref }}
+        run: |
+          if [ -z "$REF" ]; then REF="$(git describe --tags --abbrev=0)"; fi
+          echo "Publishing $REF"
+          git checkout --quiet "$REF"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - run: bun install --frozen-lockfile
+        working-directory: site
+      - run: bun run build
+        working-directory: site
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

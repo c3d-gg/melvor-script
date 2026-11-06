@@ -1,0 +1,112 @@
+---
+/**
+ * Search every typed id by name: "fire staff" → Items.Staff_of_Fire. Click to copy.
+ * Reads public/ids.json, which tools/docs-site.ts writes from src/shared/ids.generated.ts.
+ */
+---
+
+<div class="id-search" data-ids-search>
+  <input type="search" placeholder="Search by name, e.g. fire staff, oak, chicken…" aria-label="Search ids" />
+  <div class="chips" role="group" aria-label="Only show one id map"></div>
+  <p class="status" aria-live="polite">Loading ids…</p>
+  <ul class="results"></ul>
+</div>
+
+<script>
+  type Data = { maps: string[]; ids: [number, string, string, string][] };
+  const LIMIT = 60;
+
+  for (const root of document.querySelectorAll<HTMLElement>('[data-ids-search]')) {
+    const input = root.querySelector('input')!;
+    const chips = root.querySelector('.chips')!;
+    const status = root.querySelector('.status')!;
+    const list = root.querySelector('ul')!;
+    let data: Data | null = null;
+    let haystack: string[] = [];
+    let only: number | null = null;
+
+    const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+    fetch(`${base}ids.json`)
+      .then((r) => r.json())
+      .then((d: Data) => {
+        data = d;
+        haystack = d.ids.map(([, key, id, name]) => `${name} ${key.replace(/_/g, ' ')} ${id}`.toLowerCase());
+        const counts = new Map<number, number>();
+        for (const [m] of d.ids) counts.set(m, (counts.get(m) ?? 0) + 1);
+        const chip = (label: string, map: number | null) => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.textContent = label;
+          b.setAttribute('aria-pressed', String(map === only));
+          b.addEventListener('click', () => {
+            only = map;
+            for (const c of chips.querySelectorAll('button')) c.setAttribute('aria-pressed', String(c === b));
+            render();
+          });
+          chips.append(b);
+        };
+        chip('All', null);
+        d.maps.forEach((m, i) => chip(`${m} ${counts.get(i) ?? 0}`, i));
+        // ?q=fire+staff opens the page with that search
+        const q = new URLSearchParams(location.search).get('q');
+        if (q) input.value = q;
+        render();
+      })
+      .catch(() => (status.textContent = "Couldn't load the id list."));
+
+    function render() {
+      if (!data) return;
+      const words = input.value.toLowerCase().split(/\s+/).filter(Boolean);
+      list.replaceChildren();
+      if (!words.length && only === null) {
+        status.textContent = `${data.ids.length.toLocaleString()} ids. Type to search.`;
+        return;
+      }
+      const q = words.join(' ');
+      const hits: { i: number; score: number }[] = [];
+      data.ids.forEach(([map, , , name], i) => {
+        if (only !== null && map !== only) return;
+        const text = haystack[i]!;
+        if (!words.every((w) => text.includes(w))) return;
+        const n = name.toLowerCase();
+        const score = n === q ? 0 : n.startsWith(q) ? 1 : n.includes(q) ? 2 : 3;
+        hits.push({ i, score: score * 1000 + n.length });
+      });
+      hits.sort((a, b) => a.score - b.score);
+      status.textContent = hits.length
+        ? `${hits.length.toLocaleString()} match${hits.length === 1 ? '' : 'es'}${hits.length > LIMIT ? `, showing the first ${LIMIT}` : ''}. Click one to copy it.`
+        : 'No matches.';
+      for (const { i } of hits.slice(0, LIMIT)) {
+        const [map, key, id, name] = data.ids[i]!;
+        const ref = `${data.maps[map]}.${key}`;
+        const li = document.createElement('li');
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.innerHTML = '<span class="ref"></span><span class="raw"></span><span class="name"></span>';
+        b.querySelector('.ref')!.textContent = ref;
+        b.querySelector('.raw')!.textContent = id;
+        b.querySelector('.name')!.textContent = name;
+        b.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(ref);
+            status.innerHTML = '';
+            const s = document.createElement('span');
+            s.className = 'copied';
+            s.textContent = `Copied ${ref}`;
+            status.append(s);
+          } catch {
+            status.textContent = `Couldn't copy: select ${ref} and copy it by hand.`;
+          }
+        });
+        li.append(b);
+        list.append(li);
+      }
+    }
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    input.addEventListener('input', () => {
+      clearTimeout(timer);
+      timer = setTimeout(render, 60);
+    });
+  }
+</script>

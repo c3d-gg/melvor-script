@@ -1,0 +1,85 @@
+---
+title: Quick start
+description: For people who already write TypeScript. Install, run a script, learn the rules that matter.
+---
+
+import { Aside, CardGrid, LinkCard, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import Install from '../../../components/Install.astro';
+import Snippet from '../../../components/Snippet.astro';
+
+For people who already write TypeScript. If you're new to programming, [the course](/learn/) covers the same ground slowly.
+
+You need the desktop game (Steam) and [Bun](https://bun.com). The browser and mobile versions can't run the mod's server.
+
+<Steps>
+
+1. **Install the mod.** In Melvor, open the **Mod Manager** (on the character-select screen, or _Modding → Mod Manager_ in the sidebar), go to **Browse**, search `Melvor Script`, **Subscribe**, and restart the game.
+
+2. **Make a folder for your scripts.**
+
+   <Install />
+
+   `melvor init` adds `scripts/hello.ts`, a `tsconfig.json` and VS Code's F5 setup, and never overwrites a file.
+
+3. **Load a character**, or make a new one in **Scripted Mode** (recommended: see below). A **Melvor Script** panel appears in the corner. The first time, the game writes `~/.melvor-scripting/config.json`, which holds the token your scripts connect with.
+
+4. **Run it:** `bun scripts/hello.ts`, or open the file in VS Code and press **F5** (with the Bun extension, `oven.bun-vscode`).
+
+</Steps>
+
+## The rules that matter
+
+<CardGrid>
+  <LinkCard
+    title="Reads are synchronous"
+    description="m.state mirrors the game, pushed several times a second and refreshed before every call returns. m.bank.count(), m.player.hp and friends read from it."
+    href="/concepts/how-it-works/#reading-the-game"
+  />
+  <LinkCard
+    title="Actions are paced"
+    description="Skill actions and fights resolve when you may act again. Calling one while m.ready is false rejects at once with COOLDOWN, so a tight loop can't spam."
+    href="/concepts/how-it-works/#actions-and-the-cooldown"
+  />
+  <LinkCard
+    title="Everything else is free"
+    description="Eating, banking, the shop, equipment, spells, potions, Slayer tasks and farming have no cooldown. Use them any time."
+    href="/concepts/how-it-works/#free-calls"
+  />
+  <LinkCard
+    title="Ids are typed"
+    description="Items.Oak_Logs, Trees.Oak, Monsters.Chicken: a typo fails at compile time. Search them all on the ids page."
+    href="/reference/ids/"
+  />
+</CardGrid>
+
+## Two ways to write a script
+
+Both work in every mode. Pick whichever fits the script.
+
+<Tabs syncKey="style-of-script">
+  <TabItem label="Await style">
+    Each action resolves when you're ready for the next one, so a plain loop paces itself.
+    <Snippet file="site/snippets/start/styles.ts" region="await" title="scripts/oaks.ts" />
+  </TabItem>
+  <TabItem label="Loop style">
+    Look at the game on a timer and act when you're ready, like Adventure Land. Calls you don't await report failures as warnings instead of stopping the script.
+    <Snippet file="site/snippets/start/styles.ts" region="loop" title="scripts/logs-and-fire.ts" />
+  </TabItem>
+</Tabs>
+
+<Aside type="tip" title="Scripted Mode or a normal character?">
+A **Scripted Mode** character plays like a fast clicker: every action happens the moment you ask, then a cooldown of the action's normal time divided by **Speed** (Mod Settings → Melvor Script). Combat is turn-based. On a **normal character**, actions take their usual time and the game can still idle. The same scripts work on both.
+</Aside>
+
+## Where next
+
+<CardGrid>
+  <LinkCard title="Combat guide" description="Melee, ranged and magic, staying alive, Slayer." href="/guides/combat/" />
+  <LinkCard title="How it works" description="State, the cooldown, free calls, errors." href="/concepts/how-it-works/" />
+  <LinkCard title="Reference" description="Every call, with what costs a cooldown." href="/reference/" />
+  <LinkCard
+    title="Examples on GitHub"
+    description="Complete scripts: woodcut and burn, mine and smith, farming, Slayer."
+    href="https://github.com/c3d-gg/melvor-script/tree/main/examples"
+  />
+</CardGrid>

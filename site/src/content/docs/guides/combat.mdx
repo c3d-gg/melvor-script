@@ -1,0 +1,106 @@
+---
+title: Combat
+description: Gear up for melee, ranged or magic, fight, stay alive, and run Slayer tasks and dungeons.
+sidebar:
+  order: 1
+---
+
+import { Aside, LinkCard, CardGrid, Tabs, TabItem } from '@astrojs/starlight/components';
+import Snippet from '../../../components/Snippet.astro';
+
+Your script can fight anything you could fight by hand: pick a style, gear up, fight, eat, collect the loot. This guide goes through it in that order. Every call here is in the [reference](/reference/combat/), with what costs a cooldown.
+
+## Gear up
+
+There's no separate "cast" or "shoot" call: **your weapon decides how you attack.** Equip a sword and every attack is a melee hit, a bow and it's an arrow, a staff and it's a spell. Then pick an attack style, which decides where the combat XP goes.
+
+<Tabs syncKey="combat-style">
+  <TabItem label="Melee">
+    <Snippet file="site/snippets/guides/combat.ts" region="gear-melee" />
+    Stab, Slash and Block train Attack, Strength and Defence.
+  </TabItem>
+  <TabItem label="Ranged">
+    <Snippet file="site/snippets/guides/combat.ts" region="gear-ranged" />
+    A fight stops when the quiver runs out of arrows, so equip plenty.
+  </TabItem>
+  <TabItem label="Magic">
+    <Snippet file="site/snippets/guides/combat.ts" region="gear-magic" />
+    Each cast takes its runes from the bank, and an elemental staff provides some of its element's runes. If you can't afford a cast or the spell needs a higher Magic level, `setSpells` or the fight says so.
+
+    To always use the strongest spell you can cast:
+
+    <Snippet file="site/snippets/guides/combat.ts" region="best-spell" />
+
+    `setSpells` also takes a curse and an aurora: `{ curse: Curses.WeakeningI, aurora: Auroras.SurgeI }`. Pass `null` to clear one.
+
+  </TabItem>
+</Tabs>
+
+Equipping, attack styles and spells are all free: no cooldown.
+
+## Fight
+
+`fight` takes a monster and how many kills you want. It resolves once they're dead, then leaves combat:
+
+<Snippet file="site/snippets/guides/combat.ts" region="fight" />
+
+<Tabs syncKey="mode">
+  <TabItem label="Scripted Mode">
+    Combat is turn-based. `fight` attacks for you, one round per cooldown, until it has the kills. For control over **every round**, attack yourself: each `attack()` is one round, where you swing and then the monster swings.
+
+    <Snippet file="site/snippets/guides/combat.ts" region="turn-based" />
+
+  </TabItem>
+  <TabItem label="Normal character">
+    Combat runs in real time, as when you fight by hand. `fight` waits for the kills, then leaves combat. `start(monster)` begins a fight that keeps going until you call `stop()` (or die).
+  </TabItem>
+</Tabs>
+
+## Stay alive
+
+<Aside type="caution" title="fight() doesn't eat for you">
+Unless you have the game's **Auto Eat**, nothing eats during `fight`. A script that only calls `fight` will keep swinging until the character dies.
+</Aside>
+
+Equip food, then watch your HP while the fight runs. `m.onState` calls your function every time the game sends new state, several times a second, and eating is free, so it can happen in the middle of a fight:
+
+<Snippet file="site/snippets/guides/combat.ts" region="eat-while-fighting" />
+
+The turn-based loop above does the same between rounds. Either way, pick a monster your level can handle: `m.data.monsters()` lists every monster's combat level.
+
+## When a fight ends early
+
+If you die, flee or run out of ammo, `fight` throws a `FightStoppedError` that says why. Catch it, or pass `allowStop: true` and check the result:
+
+<Snippet file="site/snippets/guides/combat.ts" region="stopped" />
+
+## Loot, prayers and potions
+
+None of these cost a cooldown, so do them whenever you like: before a fight, between kills, or in the middle of one.
+
+<Snippet file="site/snippets/guides/combat.ts" region="loot-prayer-potion" />
+
+Potions last a number of charges. `m.potions.setAutoReuse('melvorD:Combat')` drinks a new one from the bank when the old one runs out.
+
+## Slayer tasks
+
+A Slayer task names a monster and a number of kills. `m.combat.slayer.fight()` fights your task's monster until the task is done. After a task, the game picks the next one in the same tier for free, and `ensureTask` takes it, so a loop never pays for a new task by accident.
+
+<Snippet file="examples/slayer.ts" />
+
+`newTask(tier)` swaps your task for a new one (Easy tasks are free to swap), and `extend()` adds kills to the current one for Slayer Coins.
+
+## Dungeons
+
+A dungeon is a series of monsters in a row, with a reward at the end. `runs` is how many full clears to do:
+
+<Snippet file="site/snippets/guides/combat.ts" region="dungeon" />
+
+## Everything in the reference
+
+<CardGrid>
+  <LinkCard title="m.combat" href="/reference/combat/" description="fight, attack, start, stop, dungeon, loot" />
+  <LinkCard title="m.player" href="/reference/player/" description="HP, food, equipment, styles, spells, prayers" />
+  <LinkCard title="m.combat.slayer" href="/reference/slayer/" description="Tasks: new, ensure, extend, fight" />
+  <LinkCard title="m.potions" href="/reference/potions/" description="Drink, remove, auto re-use" />
+</CardGrid>

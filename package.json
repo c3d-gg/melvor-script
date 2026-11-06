@@ -35,7 +35,8 @@
     "test": "bun test",
     "melvor": "bun src/cli/main.ts",
     "release": "bun tools/release.ts",
-    "docs": "bun tools/api-docs.ts"
+    "docs": "bun tools/api-docs.ts",
+    "docs:site": "bun tools/docs-site.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.4.4",

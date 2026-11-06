@@ -1,0 +1,99 @@
+---
+title: How it works
+description: The game is a server, your script is the client. Reading state, the cooldown, free calls, events and errors.
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+import Snippet from '../../../components/Snippet.astro';
+
+## The big picture
+
+The mod turns Melvor into a small server that runs on your own computer. Your script connects to it and asks for things: "cut this tree", "eat", "what's in the bank?". The game checks every request against its normal rules, does it, and answers.
+
+```text
+ VS Code                         your computer only                Melvor Idle
+ scripts/woodcutter.ts  ──────────────────────────────────────▶   the mod "Melvor Script"
+   your code calls m.…          WebSocket on 127.0.0.1             checks the rules, acts,
+   ◀── live state, events, results ──────────────────────────     pushes state back
+```
+
+Nothing happens in the game unless a script (or you) asks for it. That's what makes it a programming game: if you want 200 oak logs, you write the loop.
+
+## Reading the game
+
+`m.state` is a live copy of the game: bank, skills, HP, equipment, combat, loot and running jobs. The game pushes it several times a second and refreshes it before any call returns, so reading it is instant and needs no `await`:
+
+```ts
+m.bank.count(Items.Oak_Logs); // how many you have right now
+m.player.hpFraction; // 0.5 means half HP
+m.skills.woodcutting.level;
+```
+
+To react to changes, `m.onState(fn)` runs `fn` on every update, and `await m.waitFor((s) => …)` waits until something is true. The [m.state reference](/reference/state/) lists everything in it.
+
+## Actions and the cooldown
+
+An **action** is anything a skill or a fight does: cutting a tree, smithing a bar, attacking. Actions are paced, so a script can't do them faster than the rules allow, however tight its loop is.
+
+<Tabs syncKey="mode">
+  <TabItem label="Scripted Mode">
+    A Scripted Mode character plays like a fast clicker. Every action happens **the moment you ask**: cut a tree and the logs are already in the bank. Then a **cooldown** starts, equal to the action's normal time divided by **Speed** (Mod Settings → Melvor Script, default 10). A 3-second tree means a 0.3-second cooldown. Speed bonuses still count: a better axe shortens it.
+
+    Combat is **turn-based**: each `attack()` is one round. You swing, the monster swings, and nothing happens until the next round, so you can eat at exactly the right moment.
+
+    Nothing idles: skills make no progress unless a script or a click asks. Crops are the exception. They grow on their own, at their normal time divided by **Farming speed**.
+
+  </TabItem>
+  <TabItem label="Normal character">
+    On a normal character, each action takes its usual time. `cut(tree, { count: 10 })` starts a **job** that runs ten actions and stops. Combat runs in real time.
+
+    **Script Mode** (the toggle in the Melvor Script panel) makes the game do nothing on its own, so only your scripts and single clicks act. With it off, the game idles as usual and scripts still work.
+
+  </TabItem>
+</Tabs>
+
+Either way, the same rules apply:
+
+- **One action at a time.** `m.ready` is true when nothing is running and no cooldown is left. `m.cooldown` is the milliseconds left, and `await m.whenReady()` waits.
+- **Awaiting an action resolves when you're ready again**, so `while (…) await cut(tree)` paces itself.
+- **Calling an action while not ready fails at once** with `COOLDOWN` (or `BUSY` while one is still running). The client knows the cooldown, so the call never reaches the game.
+- **`count: n`** does n actions in one call, spaced by the cooldown inside the game.
+- The game refuses more than 60 calls a second from one script (`RATE_LIMITED`).
+
+The [reference](/reference/) marks every call that uses the cooldown.
+
+## Free calls
+
+Everything that isn't an action is free: no cooldown, usable at any moment, even in the middle of a fight. That's eating, looting, banking, the shop, equipment and spell changes, potions, picking Slayer tasks, farming, spending mastery pool XP, and looking things up in `m.data`.
+
+## When a call fails
+
+When the game refuses a call, the promise rejects with a `MelvorError`, and its `code` says why. The message explains it in words:
+
+<Snippet file="site/snippets/start/errors.ts" region="errors" />
+
+The ones you'll meet most:
+
+| Code            | Means                                                                                                     |
+| --------------- | --------------------------------------------------------------------------------------------------------- |
+| `LOCKED`        | Your level is too low, or something else isn't unlocked yet.                                              |
+| `MISSING_ITEMS` | You don't have what it needs. `e.missing` says how many more of each you need.                       |
+| `COOLDOWN`      | You called an action before `m.ready`.                                                                    |
+| `BUSY`          | An action or job is still running.                                                                        |
+| `NOT_FOUND`     | That id doesn't exist. With typed ids this is rare.                                                       |
+
+A job of several actions that ends early (bank full, out of materials) throws `ActionStoppedError`, and a fight that ends early (you died or fled) throws `FightStoppedError`. Pass `allowStop: true` to get the result back instead. The [errors reference](/reference/errors/) has every code.
+
+<Aside title="Errors in loop-style scripts">
+A call you don't `await` (fire and forget, as in a `setInterval` loop) can't throw into your code. Its failure is printed as a warning instead, and the loop keeps going. Errors thrown by your own code still stop the script.
+</Aside>
+
+## Events
+
+The game also tells your script when things happen: `m.on('levelUp', (e) => …)`, `'monsterKilled'`, `'jobFinished'`, `'cropsGrown'`, `'slayerTaskCompleted'` and more. `m.on` returns a function that unsubscribes; `await m.once('levelUp')` waits for the next one. The [events reference](/reference/events/) lists them all.
+
+## When a script ends
+
+Every script calls `run((m) => { … })`, which connects and reports errors at your script's line. The script ends when your function has returned and nothing is left scheduled: no intervals or timers, no pending calls, no `m.on` or `m.onState` listeners. So an `async` script that loops until it's done exits on its own, and a `setInterval` loop runs until you stop it.
+
+**Ctrl+C** in the terminal, or **stop** in the Melvor Script panel, ends a script and cancels what it was doing.

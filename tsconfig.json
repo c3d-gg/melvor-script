@@ -14,7 +14,16 @@
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "noUncheckedIndexedAccess": false,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    // Lets site/snippets (its own package) import the client by name, like a script would.
+    "paths": { "melvor-script": ["./src/client/index.ts"] }
   },
-  "include": ["src/**/*.ts", "examples/**/*.ts", "scripts/**/*.ts", "test/**/*.ts", "tools/**/*.ts"]
+  "include": [
+    "src/**/*.ts",
+    "examples/**/*.ts",
+    "scripts/**/*.ts",
+    "test/**/*.ts",
+    "tools/**/*.ts",
+    "site/snippets/**/*.ts"
+  ]
 }

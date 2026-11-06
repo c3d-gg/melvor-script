@@ -1,0 +1,59 @@
+---
+/**
+ * Shows code from a real file, so every sample on the site is type-checked by CI.
+ *
+ *   <Snippet file="examples/slayer.ts" />                         the whole file
+ *   <Snippet file="site/snippets/guides/combat.ts" region="magic" />   one region of it
+ *
+ * Paths are from the repo root. Mark a region in the file with `// #region name` and
+ * `// #endregion`; the markers never show. Other props (title, mark, ins, del...) go to <Code>.
+ */
+import { Code } from '@astrojs/starlight/components';
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+interface Props {
+  file: string;
+  region?: string;
+  /** Shown above the code. Defaults to the file path for examples/, nothing for snippets. */
+  title?: string;
+  /** [from, to] text replacements, e.g. to show an example as it looks in your own folder. */
+  replace?: [string, string][];
+  [key: string]: unknown;
+}
+
+const { file, region, title, replace = [], ...rest } = Astro.props;
+// Astro runs from site/ (bun run dev / build); the repo root is one level up.
+const root = existsSync(resolve(process.cwd(), 'site')) ? process.cwd() : resolve(process.cwd(), '..');
+const path = resolve(root, file);
+if (!existsSync(path)) throw new Error(`<Snippet>: ${file} doesn't exist`);
+let lines = readFileSync(path, 'utf8').replace(/\r\n/g, '\n').split('\n');
+
+const marker = /^\s*\/\/\s*#(end)?region\b\s*(.*)$/;
+if (region) {
+  const start = lines.findIndex((l) => l.match(marker)?.[1] === undefined && l.match(marker)?.[2]?.trim() === region);
+  if (start < 0) throw new Error(`<Snippet>: no "// #region ${region}" in ${file}`);
+  let depth = 0;
+  let end = start + 1;
+  for (; end < lines.length; end++) {
+    const m = lines[end]!.match(marker);
+    if (!m) continue;
+    if (m[1]) {
+      if (depth === 0) break;
+      depth--;
+    } else depth++;
+  }
+  lines = lines.slice(start + 1, end);
+}
+lines = lines.filter((l) => !marker.test(l));
+while (lines.length && !lines[0]!.trim()) lines.shift();
+while (lines.length && !lines.at(-1)!.trim()) lines.pop();
+const pad = Math.min(...lines.filter((l) => l.trim()).map((l) => l.match(/^ */)![0].length));
+const code = replace.reduce(
+  (text, [from, to]) => text.replaceAll(from, to),
+  lines.map((l) => l.slice(pad)).join('\n'),
+);
+const shownTitle = title ?? (file.startsWith('examples/') ? file : undefined);
+---
+
+<Code code={code} lang="ts" title={shownTitle} {...rest} />
