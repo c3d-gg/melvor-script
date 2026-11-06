@@ -314,7 +314,12 @@ On every skill with actions, and on `m.skills.farming` (`T` is `CropId` there).
   `null` removes the curse or aurora. Curses and auroras need magic attacks, and a spellbook
   that allows them. Free: no cooldown.
 
+  There's no separate "cast" in combat: your weapon decides how you attack. With a magic weapon
+  (a staff or wand) equipped, every attack casts your attack spell and uses its runes from the
+  bank. A staff like `Items.Staff_of_Fire` also provides its element's runes.
+
   ```ts
+  await m.player.equip(Items.Staff_of_Fire);
   await m.player.setSpells({ attack: AttackSpells.FireBolt, curse: Curses.WeakeningI });
   ```
 
@@ -352,6 +357,7 @@ On every skill with actions, and on `m.skills.farming` (`T` is `CropId` there).
   Instant mode: one combat click. You attack (more than once with "actions per click"
   bonuses), then the enemy acts. If the next enemy is still spawning, waits for it.
   Resolves when the cooldown (your attack interval / speed) is over.
+  Your weapon sets the attack type: with a magic weapon this casts your spell (see `m.player.setSpells`).
 - **`fight(monster: MonsterId, opts: { area?: CombatAreaId; kills?: number; allowStop?: boolean } = {}): Promise<FightResult>`**
   Fight a monster. With `kills`, resolves after that many kills (in instant mode it keeps
   attacking for you; in real-time mode combat stops afterwards). Without `kills`, the same as `start()`.
